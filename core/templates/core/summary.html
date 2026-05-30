@@ -1,0 +1,183 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Resumen Mensual{% endblock %}
+{% block extra_head %}
+<script src="{% static 'core/vendor/chart.umd.min.js' %}"></script>
+{% endblock %}
+{% block content %}
+<div class="summary-container">
+    <div class="page-header">
+        <h1>📊 Resumen Mensual</h1>
+        <div class="header-actions">
+            <a href="{% url 'export_csv' %}" class="btn btn-small">CSV</a>
+            <a href="{% url 'export_xlsx' %}" class="btn btn-small">Excel</a>
+            <a href="{% url 'export_pdf' %}?mes={{ mes }}&ano={{ ano }}" class="btn btn-small export-pdf">PDF</a>
+        </div>
+    </div>
+
+    <form method="get" class="filter-form">
+        <div class="form-group inline-form">
+            <label for="mes">Mes:</label>
+            <select name="mes" id="mes" class="form-control">
+                {% for num, nombre in meses %}
+                <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+            <label for="ano">Año:</label>
+            <select name="ano" id="ano" class="form-control">
+                {% for a in anos %}
+                <option value="{{ a }}" {% if ano == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Ver Resumen</button>
+        </div>
+    </form>
+
+    <div class="summary-header">
+        <h2>{{ nombre_mes }} {{ ano }}</h2>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-card">
+            <span class="stat-number">{{ total_tareas }}</span>
+            <span class="stat-label">Total Tareas</span>
+        </div>
+        <div class="stat-card done">
+            <span class="stat-number">{{ conteo_estados.terminada }}</span>
+            <span class="stat-label">Completadas</span>
+        </div>
+        <div class="stat-card pending">
+            <span class="stat-number">{{ conteo_estados.pendiente }}</span>
+            <span class="stat-label">Pendientes</span>
+        </div>
+        <div class="stat-card progress">
+            <span class="stat-number">{{ conteo_estados.proceso }}</span>
+            <span class="stat-label">En Proceso</span>
+        </div>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-card highlight">
+            <span class="stat-number">{{ total_horas|floatformat:2 }}</span>
+            <span class="stat-label">Horas Totales</span>
+        </div>
+        <div class="stat-card highlight">
+            <span class="stat-number">{{ promedio_horas|floatformat:2 }}</span>
+            <span class="stat-label">Promedio por Tarea (h)</span>
+        </div>
+    </div>
+
+    {% if total_tareas > 0 %}
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Prioridad</h3>
+            <canvas id="chartPrioridad"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Tareas por Día</h3>
+            <canvas id="chartDias"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if top_horas %}
+    <div class="section">
+        <h3>⏱ Top 10 tareas con más horas</h3>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Horas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in top_horas %}
+                <tr>
+                    <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo }}</a></td>
+                    <td>{{ t.horas_tomadas }}h</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if tareas_con_horas %}
+    <div class="section">
+        <h3>⏱ Tareas con horas registradas</h3>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Estado</th>
+                    <th>Horas</th>
+                    <th>Completada</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tareas_con_horas %}
+                <tr>
+                    <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo }}</a></td>
+                    <td><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
+                    <td>{{ t.horas_tomadas }}h</td>
+                    <td>{{ t.fecha_completada|date:"d/m/Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if not tareas_con_horas and not total_tareas %}
+    <p class="empty">No hay datos para este mes.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+{% if total_tareas > 0 %}
+const colores = {
+    urgente: '#f85149', alta: '#d29922', media: '#58a6ff', baja: '#3fb950',
+    pendiente: '#d29922', proceso: '#58a6ff', terminada: '#3fb950',
+};
+
+new Chart(document.getElementById('chartPrioridad'), {
+    type: 'doughnut',
+    data: {
+        labels: {{ prioridad_labels|safe }},
+        datasets: [{
+            data: {{ prioridad_data|safe }},
+            backgroundColor: [colores.urgente, colores.alta, colores.media, colores.baja],
+            borderWidth: 0,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { color: '#8b949e' } } }
+    }
+});
+
+new Chart(document.getElementById('chartDias'), {
+    type: 'bar',
+    data: {
+        labels: Array.from({length: {{ dias_mes }}}, (_, i) => i + 1),
+        datasets: [{
+            label: 'Tareas creadas',
+            data: [{% for d in tareas_por_dia %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: '#58a6ff',
+            borderRadius: 3,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
+            x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

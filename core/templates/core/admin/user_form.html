@@ -1,0 +1,27 @@
+{% extends 'core/base.html' %}
+{% block title %}{% if crear %}Nuevo Usuario{% else %}Editar Usuario{% endif %}{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>{% if crear %}👤 Nuevo Usuario{% else %}✏️ {{ edit_user.username }}{% endif %}</h1>
+        <a href="{% url 'admin_users' %}" class="btn">Volver</a>
+    </div>
+
+    <div class="form-container" style="max-width:500px;margin:0">
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="field-error">{{ field.errors }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="{% url 'admin_users' %}" class="btn">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

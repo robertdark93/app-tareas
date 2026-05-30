@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Calendario{% endblock %}
+{% block content %}
+<div class="calendar-page">
+    <div class="page-header">
+        <h1>📅 Calendario</h1>
+    </div>
+
+    <div class="calendar-nav">
+        <a href="?ano={{ ano_anterior }}&mes={{ mes_anterior }}" class="btn">&larr; Anterior</a>
+        <h2>{{ nombre_mes }} {{ ano }}</h2>
+        <a href="?ano={{ ano_siguiente }}&mes={{ mes_siguiente }}" class="btn">Siguiente &rarr;</a>
+    </div>
+
+    <form method="get" class="calendar-jump">
+        <select name="mes" class="form-control">
+            {% for num, nombre in meses %}
+            <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+        </select>
+        <select name="ano" class="form-control">
+            {% for a in anos %}
+            <option value="{{ a }}" {% if ano == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">Ir</button>
+    </form>
+
+    <table class="calendar-table">
+        <thead>
+            <tr>
+                <th>Lun</th>
+                <th>Mar</th>
+                <th>Mié</th>
+                <th>Jue</th>
+                <th>Vie</th>
+                <th>Sáb</th>
+                <th>Dom</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for semana in dias_mes %}
+            <tr>
+                {% for dia in semana %}
+                <td class="{% if dia.month != mes %}other-month{% endif %} {% if dia == hoy %}today{% endif %}">
+                    <div class="cal-day-num">{{ dia.day }}</div>
+                    <div class="cal-tasks">
+                        {% with tareas_por_dia|get_item:dia.day as day_tasks %}
+                        {% if day_tasks %}
+                            {% for t in day_tasks %}
+                            <a href="{% url 'task_detail' t.id %}" class="cal-task priority-{{ t.prioridad }}" title="{{ t.titulo }}">{{ t.titulo|truncatechars:18 }}{% if t.etiquetas.all %}{% for tag in t.etiquetas.all|slice:":2" %}·{{ tag.nombre|truncatechars:6 }}{% endfor %}{% endif %}</a>
+                            {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if tareas_sin_fecha %}
+    <div class="section" style="margin-top:20px">
+        <h3>📋 Tareas sin fecha de vencimiento</h3>
+        {% for t in tareas_sin_fecha %}
+        <div class="task-item status-{{ t.estado }}">
+            <div class="task-info">
+                <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.etiquetas.all %}
+                <div class="task-tags">
+                    {% for tag in t.etiquetas.all|slice:":3" %}
+                    <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

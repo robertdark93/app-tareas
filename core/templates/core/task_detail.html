@@ -1,0 +1,251 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ tarea.titulo }}{% endblock %}
+{% block content %}
+<div class="detail-container">
+    <div class="page-header">
+        <h1>{{ tarea.titulo }}</h1>
+        <div class="header-actions">
+            <a href="{% url 'task_update' tarea.id %}" class="btn" title="Editar tarea">✏️ Editar</a>
+            <a href="{% url 'task_delete' tarea.id %}" class="btn btn-danger" title="Eliminar tarea">🗑️</a>
+            <button class="btn" id="shareBtn" title="Compartir enlace de esta tarea" data-pk="{{ tarea.id }}">🔗</button>
+            <a href="{% url 'task_list' %}" class="btn" title="Volver a lista de tareas">← Volver</a>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-row">
+            <span class="detail-label">Asignado a</span>
+            <span>{{ tarea.usuario.get_full_name|default:tarea.usuario.username }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Estado</span>
+            <span class="badge {{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Prioridad</span>
+            <span class="priority priority-{{ tarea.prioridad }}">{{ tarea.get_prioridad_display }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Fecha de creación</span>
+            <span>{{ tarea.fecha_creacion|date:"d/m/Y" }}</span>
+        </div>
+        {% if tarea.fecha_vencimiento %}
+        <div class="detail-row">
+            <span class="detail-label">Vence</span>
+            <span>{{ tarea.fecha_vencimiento|date:"d/m/Y" }}</span>
+        </div>
+        {% endif %}
+        {% if tarea.fecha_completada %}
+        <div class="detail-row">
+            <span class="detail-label">Completada</span>
+            <span>{{ tarea.fecha_completada|date:"d/m/Y" }}</span>
+        </div>
+        {% endif %}
+        {% if tarea.horas_tomadas %}
+        <div class="detail-row">
+            <span class="detail-label">Horas tomadas</span>
+            <span>{{ tarea.horas_tomadas }}h</span>
+        </div>
+        {% endif %}
+        {% if tarea.recordatorio %}
+        <div class="detail-row">
+            <span class="detail-label">Recordatorio</span>
+            <span>{{ tarea.recordatorio|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if tarea.recurrente %}
+        <div class="detail-row">
+            <span class="detail-label">Recurrente</span>
+            <span>🔄 {{ tarea.get_frecuencia_display }}</span>
+        </div>
+        {% endif %}
+        {% if tarea.parent %}
+        <div class="detail-row">
+            <span class="detail-label">Tarea padre</span>
+            <span><a href="{% url 'task_detail' tarea.parent.id %}">{{ tarea.parent.titulo }}</a></span>
+        </div>
+        {% endif %}
+        {% if tarea.etiquetas.all %}
+        <div class="detail-row">
+            <span class="detail-label">Etiquetas</span>
+            <div class="task-tags">
+                {% for tag in tarea.etiquetas.all %}
+                <span class="mini-tag" style="background:{{ tag.color }}22; color:{{ tag.color }}; border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if tarea.comentarios %}
+        <div class="detail-row">
+            <span class="detail-label">Comentarios</span>
+            <p class="detail-text">{{ tarea.comentarios|linebreaks }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if archivos %}
+    <div class="detail-card" style="margin-top:16px">
+        <div class="detail-row">
+            <span class="detail-label">Archivos adjuntos</span>
+            {% for a in archivos %}
+            <div class="file-item">
+                <a href="{{ a.archivo.url }}" target="_blank">{{ a.nombre }}</a>
+                <small>{{ a.subido|date:"d/m/Y H:i" }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if subtareas %}
+    <div class="detail-card" style="margin-top:16px">
+        <div class="detail-row">
+            <span class="detail-label">Subtareas <small style="font-weight:400;text-transform:none">(arrastra para reordenar)</small></span>
+            <ul class="task-list" id="subtaskList">
+                {% for sub in subtareas %}
+                <li class="task-item status-{{ sub.estado }}" data-id="{{ sub.id }}" draggable="true" style="cursor:grab">
+                    <div class="task-info" style="display:flex;align-items:center;gap:8px">
+                        <span style="color:var(--text-muted);font-size:0.7rem;cursor:grab">⠿</span>
+                        <a href="{% url 'task_detail' sub.id %}" class="task-title">{{ sub.titulo }}</a>
+                        <span class="badge {{ sub.estado }}">{{ sub.get_estado_display }}</span>
+                        {% if sub.etiquetas.all %}
+                        <div class="task-tags">
+                            {% for tag in sub.etiquetas.all|slice:":2" %}
+                            <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if logs %}
+    <div class="detail-card" style="margin-top:16px">
+        <div class="detail-row">
+            <span class="detail-label">Historial</span>
+            <div style="margin-top:8px">
+                {% for log in logs %}
+                <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;display:flex;gap:10px;align-items:flex-start">
+                    <span style="color:var(--text-muted);white-space:nowrap;font-size:0.75rem;min-width:70px">{{ log.creado|date:"H:i" }}</span>
+                    <span style="color:var(--text-secondary);font-size:0.75rem;min-width:70px">{{ log.usuario.username }}</span>
+                    <div style="flex:1">
+                        <span class="badge" style="font-size:0.6rem;background:rgba(88,166,255,0.1);color:var(--accent)">{{ log.get_accion_display }}</span>
+                        {% if log.detalle and log.detalle != 'Editada' %}
+                        <div style="margin-top:4px;font-size:0.82rem;color:var(--text-primary);line-height:1.5">{{ log.detalle|linebreaksbr }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if tarea.estado != 'terminada' %}
+    <div class="complete-section">
+        <h3>✅ Marcar como terminada</h3>
+        <form method="post" action="{% url 'task_complete' tarea.id %}">
+            {% csrf_token %}
+            <div class="form-group inline-form">
+                <label for="horas">Horas tomadas:</label>
+                <input type="number" name="horas_tomadas" id="horas" step="0.25" min="0" class="form-control" style="width:120px" placeholder="0.0">
+                <button type="submit" class="btn btn-primary">Completar Tarea</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ── Share button ──
+    const shareBtn = document.getElementById('shareBtn');
+    if (shareBtn) {
+        fetch('{% url "generate_share_token" tarea.id %}', { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+            .then(r => r.json())
+            .then(d => {
+                if (d.token) {
+                    const url = window.location.origin + '/shared/' + d.token + '/';
+                    shareBtn.dataset.url = url;
+                }
+            })
+            .catch(() => {});
+
+        shareBtn.addEventListener('click', function() {
+            const url = this.dataset.url;
+            if (url) {
+                navigator.clipboard.writeText(url).then(() => {
+                    const orig = this.textContent;
+                    this.textContent = '✅';
+                    setTimeout(() => { this.textContent = orig; }, 2000);
+                }).catch(() => {
+                    prompt('Copiar enlace:', url);
+                });
+            }
+        });
+    }
+
+    // ── Subtask drag & drop reorder ──
+    const subtaskList = document.getElementById('subtaskList');
+    if (subtaskList) {
+        let dragItem = null;
+        subtaskList.querySelectorAll('li[draggable]').forEach(li => {
+            li.addEventListener('dragstart', function(e) {
+                dragItem = this;
+                this.style.opacity = '0.4';
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            li.addEventListener('dragend', function() {
+                this.style.opacity = '1';
+                document.querySelectorAll('#subtaskList li').forEach(l => l.style.borderTop = '');
+            });
+            li.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (this !== dragItem) {
+                    const rect = this.getBoundingClientRect();
+                    const after = e.clientY > rect.top + rect.height / 2;
+                    this.style.borderTop = after ? '' : '2px solid var(--accent)';
+                }
+            });
+            li.addEventListener('dragleave', function() { this.style.borderTop = ''; });
+            li.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.style.borderTop = '';
+                if (dragItem && this !== dragItem) {
+                    const rect = this.getBoundingClientRect();
+                    const after = e.clientY > rect.top + rect.height / 2;
+                    if (after) {
+                        this.parentNode.insertBefore(dragItem, this.nextSibling);
+                    } else {
+                        this.parentNode.insertBefore(dragItem, this);
+                    }
+                    // save new order
+                    const ids = [...subtaskList.querySelectorAll('li[draggable]')].map(li => li.dataset.id);
+                    const form = new FormData();
+                    ids.forEach(id => form.append('subtask_ids[]', id));
+                    fetch('{% url "subtask_reorder" tarea.id %}', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: form,
+                    });
+                }
+            });
+        });
+    }
+
+    // ── Keyboard shortcuts ──
+    document.addEventListener('keydown', function(e) {
+        // Escape dismisses messages
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.message').forEach(m => m.remove());
+        }
+    });
+});
+</script>
+{% endblock %}

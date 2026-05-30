@@ -1,0 +1,26 @@
+{% extends 'core/base.html' %}
+{% block title %}Notas{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>📓 Mis Notas</h1>
+    <a href="{% url 'note_create' %}" class="btn btn-primary">Nueva Nota</a>
+</div>
+
+{% if notas %}
+<ul class="note-list full">
+    {% for n in notas %}
+    <li class="note-item">
+        <a href="{% url 'note_detail' n.id %}" class="note-title">{{ n.titulo }}</a>
+        <small>{{ n.fecha_creacion|date:"d/m/Y" }}</small>
+        <p class="note-preview">{{ n.contenido|truncatewords:30 }}</p>
+        <div class="note-actions">
+            <a href="{% url 'note_update' n.id %}" class="btn btn-small">Editar</a>
+            <a href="{% url 'note_delete' n.id %}" class="btn btn-small btn-danger">Eliminar</a>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No hay notas.</p>
+{% endif %}
+{% endblock %}

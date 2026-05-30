@@ -1,0 +1,52 @@
+{% extends 'core/base.html' %}
+{% block title %}Copias de Seguridad{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>💾 Copias de Seguridad</h1>
+        <div class="header-actions">
+            <a href="{% url 'admin_dashboard' %}" class="btn">← Volver al Panel</a>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'admin_backups' %}" style="margin-bottom:1.5rem">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="crear">
+        <button type="submit" class="btn btn-primary">🔄 Crear Nueva Copia</button>
+    </form>
+
+    <div class="section">
+        <h2>Archivos de Backup</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Archivo</th>
+                    <th>Tamaño</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in backups %}
+                <tr>
+                    <td><code>{{ b.filename }}</code></td>
+                    <td>{{ b.size }}</td>
+                    <td>{{ b.modified }}</td>
+                    <td>
+                        <a href="{% url 'admin_backups' %}?descargar={{ b.filename|urlencode }}" class="btn btn-sm">📥 Descargar</a>
+                        <form method="post" action="{% url 'admin_backups' %}" style="display:inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="accion" value="eliminar">
+                            <input type="hidden" name="filename" value="{{ b.filename }}">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este backup?')">🗑️ Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="empty">No hay copias de seguridad todavía.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

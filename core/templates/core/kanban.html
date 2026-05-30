@@ -1,0 +1,242 @@
+{% extends 'core/base.html' %}
+{% block title %}Kanban{% endblock %}
+{% block content %}
+<style>
+.kanban-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+.kanban-col {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 12px;
+    min-height: 300px;
+}
+.kanban-col h2 {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+}
+.kanban-col h2 .count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.05);
+    padding: 1px 10px;
+    border-radius: 12px;
+}
+.kanban-card {
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    cursor: grab;
+    transition: all 0.15s ease;
+    border-left: 3px solid var(--border);
+}
+.kanban-card:hover {
+    border-color: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.kanban-card:active { cursor: grabbing; }
+.kanban-card.pendiente { border-left-color: var(--yellow); }
+.kanban-card.proceso { border-left-color: var(--cyan); }
+.kanban-card.terminada { border-left-color: var(--green); opacity: 0.7; }
+.kanban-card.dragging { opacity: 0.4; }
+.kanban-card .card-title {
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    display: block;
+    margin-bottom: 6px;
+}
+.kanban-card .card-title:hover { color: var(--accent); }
+.kanban-card .card-meta {
+    display: flex;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    align-items: center;
+}
+.kanban-card .card-tags {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+.kanban-card .card-tag {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 500;
+    border: 1px solid;
+}
+.kanban-col.drag-over { border-color: var(--accent); background: rgba(88,166,255,0.03); }
+@media (max-width: 700px) {
+    .kanban-board { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="page-header">
+    <h1>📋 Kanban</h1>
+    <div class="header-actions">
+        <a href="{% url 'task_list' %}" class="btn">Vista Lista</a>
+    </div>
+</div>
+
+<div class="kanban-board" id="kanbanBoard">
+    <div class="kanban-col" data-estado="pendiente">
+        <h2>⏳ Pendientes <span class="count">{{ pendientes.count }}</span></h2>
+        {% for t in pendientes %}
+        <div class="kanban-card pendiente" data-id="{{ t.id }}" draggable="true">
+            <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            <div class="card-meta">
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
+                {% if t.usuario %}<span>👤 {{ t.usuario.username }}</span>{% endif %}
+            </div>
+            {% if t.etiquetas.all %}
+            <div class="card-tags" style="margin-top:6px">
+                {% for tag in t.etiquetas.all %}
+                <span class="card-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:20px 0">Sin tareas</p>
+        {% endfor %}
+    </div>
+
+    <div class="kanban-col" data-estado="proceso">
+        <h2>⚡ En Proceso <span class="count">{{ proceso.count }}</span></h2>
+        {% for t in proceso %}
+        <div class="kanban-card proceso" data-id="{{ t.id }}" draggable="true">
+            <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            <div class="card-meta">
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
+                {% if t.usuario %}<span>👤 {{ t.usuario.username }}</span>{% endif %}
+            </div>
+            {% if t.etiquetas.all %}
+            <div class="card-tags" style="margin-top:6px">
+                {% for tag in t.etiquetas.all %}
+                <span class="card-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:20px 0">Sin tareas</p>
+        {% endfor %}
+    </div>
+
+    <div class="kanban-col" data-estado="terminada">
+        <h2>✅ Terminadas <span class="count">{{ terminadas.count }}</span></h2>
+        {% for t in terminadas %}
+        <div class="kanban-card terminada" data-id="{{ t.id }}" draggable="true">
+            <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            <div class="card-meta">
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.fecha_completada %}<span>✅ {{ t.fecha_completada|date:"d/m" }}</span>{% endif %}
+            </div>
+            {% if t.etiquetas.all %}
+            <div class="card-tags" style="margin-top:6px">
+                {% for tag in t.etiquetas.all %}
+                <span class="card-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:20px 0">Sin tareas</p>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const board = document.getElementById('kanbanBoard');
+    let dragSrc = null;
+
+    document.querySelectorAll('.kanban-card[draggable]').forEach(card => {
+        card.addEventListener('dragstart', function(e) {
+            dragSrc = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.id);
+        });
+        card.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+        });
+    });
+
+    document.querySelectorAll('.kanban-col').forEach(col => {
+        col.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+        col.addEventListener('dragleave', function() {
+            this.classList.remove('drag-over');
+        });
+        col.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const taskId = e.dataTransfer.getData('text/plain');
+            const newEstado = this.dataset.estado;
+            if (!taskId || !dragSrc) return;
+            const oldEstado = dragSrc.closest('.kanban-col').dataset.estado;
+            if (oldEstado === newEstado) return;
+
+            // Optimistic UI update
+            const card = dragSrc;
+            card.className = 'kanban-card ' + newEstado;
+            this.insertBefore(card, this.querySelector('p') || null);
+            updateCounts();
+
+            // POST to server
+            const form = new FormData();
+            form.append('estado', newEstado);
+            fetch('{% url "kanban_update" 0 %}'.replace('0', taskId), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                body: form,
+            }).then(r => {
+                if (!r.ok) {
+                    card.className = 'kanban-card ' + oldEstado;
+                    const oldCol = document.querySelector(`.kanban-col[data-estado="${oldEstado}"]`);
+                    if (oldCol) oldCol.insertBefore(card, oldCol.querySelector('p') || null);
+                    updateCounts();
+                }
+            }).catch(() => {
+                card.className = 'kanban-card ' + oldEstado;
+                const oldCol = document.querySelector(`.kanban-col[data-estado="${oldEstado}"]`);
+                if (oldCol) oldCol.insertBefore(card, oldCol.querySelector('p') || null);
+                updateCounts();
+            });
+        });
+    });
+
+    function updateCounts() {
+        [('pendiente'), ('proceso'), ('terminada')].forEach(est => {
+            const col = document.querySelector(`.kanban-col[data-estado="${est}"]`);
+            if (!col) return;
+            const count = col.querySelectorAll('.kanban-card').length;
+            const span = col.querySelector('h2 .count');
+            if (span) span.textContent = count;
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Inicio - Gestor de Tareas{% endblock %}
+{% block extra_head %}
+<script src="{% static 'core/vendor/chart.umd.min.js' %}"></script>
+{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <h1>Bienvenido, {{ user.username }}</h1>
+
+    <div class="stats-row">
+        <div class="stat-card pending">
+            <span class="stat-number">{{ total_pendientes }}</span>
+            <span class="stat-label">Pendientes</span>
+        </div>
+        <div class="stat-card progress">
+            <span class="stat-number">{{ total_proceso }}</span>
+            <span class="stat-label">En Proceso</span>
+        </div>
+        <div class="stat-card done">
+            <span class="stat-number">{{ total_terminadas }}</span>
+            <span class="stat-label">Terminadas</span>
+        </div>
+        {% if eficiencia > 0 %}
+        <div class="stat-card highlight">
+            <span class="stat-number">{{ eficiencia }}%</span>
+            <span class="stat-label">Eficiencia</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if total_tareas > 0 %}
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Estado de Tareas</h3>
+            <canvas id="chartEstados"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Prioridad</h3>
+            <canvas id="chartPrioridad"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if notificaciones %}
+    <div class="section">
+        <h2>🔔 Notificaciones</h2>
+        {% for n in notificaciones %}
+        <div class="notification-item">
+            <span>{{ n.mensaje }}</span>
+            <small>{{ n.creado|date:"d/m/Y H:i" }}</small>
+        </div>
+        {% endfor %}
+        <a href="{% url 'notification_read_all' %}" class="btn btn-small">Marcar todas leídas</a>
+    </div>
+    {% endif %}
+
+    {% if tareas_urgentes %}
+    <div class="section">
+        <h2>🔴 Urgentes</h2>
+        <ul class="task-list">
+            {% for t in tareas_urgentes %}
+            <li class="task-item status-{{ t.estado }}">
+                <div class="task-info">
+                    <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                    {% if t.etiquetas.all %}
+                    <div class="task-tags">
+                        {% for tag in t.etiquetas.all|slice:":3" %}
+                        <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if t.fecha_vencimiento %}
+                    <small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if etiquetas %}
+    <div class="section">
+        <h2>🏷️ Etiquetas</h2>
+        <div class="tag-cloud">
+            {% for tag in etiquetas %}
+            <a href="{% url 'task_list' %}?etiqueta={{ tag.id }}" class="tag" style="--tag-color: {{ tag.color }}">{{ tag.nombre }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="dashboard-grid">
+        <div class="section">
+            <h2>⏰ Vencen Hoy</h2>
+            {% if tareas_hoy %}
+            <ul class="task-list">
+                {% for t in tareas_hoy %}
+                <li class="task-item status-{{ t.estado }}">
+                    <div class="task-info">
+                        <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                        <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
+                        {% if t.etiquetas.all %}
+                        <div class="task-tags">
+                            {% for tag in t.etiquetas.all|slice:":3" %}
+                            <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty">No hay tareas para hoy.</p>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h2>📝 Pendientes</h2>
+            {% if tareas_pendientes %}
+            <ul class="task-list">
+                {% for t in tareas_pendientes|slice:":8" %}
+                <li class="task-item status-pendiente">
+                    <div class="task-info">
+                        <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                        {% if t.prioridad == 'alta' or t.prioridad == 'urgente' %}
+                        <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                        {% endif %}
+                        {% if t.etiquetas.all %}
+                        <div class="task-tags">
+                            {% for tag in t.etiquetas.all|slice:":3" %}
+                            <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if t.fecha_vencimiento %}
+                        <small>{{ t.fecha_vencimiento|date:"d/m" }}</small>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty">No hay tareas pendientes.</p>
+            {% endif %}
+            <a href="{% url 'task_create' %}" class="btn">Nueva Tarea</a>
+        </div>
+
+        <div class="section">
+            <h2>📓 Notas Recientes</h2>
+            {% if notas_recientes %}
+            <ul class="note-list">
+                {% for n in notas_recientes %}
+                <li>
+                    <a href="{% url 'note_detail' n.id %}">{{ n.titulo }}</a>
+                    <small>{{ n.fecha_creacion|date:"d/m/Y" }}</small>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty">No hay notas aún.</p>
+            {% endif %}
+            <a href="{% url 'note_create' %}" class="btn">Nueva Nota</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+{% if total_tareas > 0 %}
+const colores = {
+    pendiente: '#d29922',
+    proceso: '#58a6ff',
+    terminada: '#3fb950',
+    urgente: '#f85149',
+    alta: '#d29922',
+    media: '#58a6ff',
+    baja: '#3fb950',
+};
+
+new Chart(document.getElementById('chartEstados'), {
+    type: 'doughnut',
+    data: {
+        labels: {{ chart_estados.labels|safe }},
+        datasets: [{
+            data: {{ chart_estados.data|safe }},
+            backgroundColor: [colores.pendiente, colores.proceso, colores.terminada],
+            borderWidth: 0,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { color: '#8b949e' } } }
+    }
+});
+
+new Chart(document.getElementById('chartPrioridad'), {
+    type: 'bar',
+    data: {
+        labels: ['Urgente', 'Alta', 'Media', 'Baja'],
+        datasets: [{
+            label: 'Tareas',
+            data: [{{ chart_prioridades.urgente }}, {{ chart_prioridades.alta }}, {{ chart_prioridades.media }}, {{ chart_prioridades.baja }}],
+            backgroundColor: [colores.urgente, colores.alta, colores.media, colores.baja],
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
+            x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

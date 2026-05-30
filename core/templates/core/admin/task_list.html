@@ -1,0 +1,85 @@
+{% extends 'core/base.html' %}
+{% block title %}Todas las Tareas - Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>📋 Todas las Tareas</h1>
+        <a href="{% url 'task_create' %}" class="btn btn-primary">+ Nueva Tarea</a>
+    </div>
+
+    <form method="get" class="filter-form">
+        <div class="inline-form">
+            <label>Estado:</label>
+            <select name="estado" class="form-control">
+                <option value="">Todos</option>
+                <option value="pendiente" {% if estado_actual == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                <option value="proceso" {% if estado_actual == 'proceso' %}selected{% endif %}>En Proceso</option>
+                <option value="terminada" {% if estado_actual == 'terminada' %}selected{% endif %}>Terminada</option>
+            </select>
+            <label>Usuario:</label>
+            <select name="usuario" class="form-control">
+                <option value="">Todos</option>
+                {% for u in usuarios %}
+                <option value="{{ u.id }}" {% if usuario_actual|stringformat:'s' == u.id|stringformat:'s' %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+            <label>Departamento:</label>
+            <select name="departamento" class="form-control">
+                <option value="">Todos</option>
+                {% for d in departamentos %}
+                <option value="{{ d.id }}" {% if depto_actual|stringformat:'s' == d.id|stringformat:'s' %}selected{% endif %}>{{ d.nombre }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+        </div>
+    </form>
+
+    <div class="card-table">
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Usuario</th>
+                    <th>Departamento</th>
+                    <th>Estado</th>
+                    <th>Prioridad</th>
+                    <th>Vence</th>
+                    <th>Horas</th>
+                    <th title="Acciones">⚙️</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tareas %}
+                <tr>
+                    <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo|truncatechars:40 }}</a></td>
+                    <td>{{ t.usuario.username }}</td>
+                    <td>{{ t.departamento|default:"-" }}</td>
+                    <td><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
+                    <td><span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span></td>
+                    <td>{{ t.fecha_vencimiento|date:"d/m/Y"|default:"-" }}</td>
+                    <td>{{ t.horas_tomadas|default:"-" }}h</td>
+                    <td>
+                        <a href="{% url 'task_update' t.id %}" class="btn btn-small" title="Editar tarea">✏️</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="empty">No hay tareas</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if tareas.has_other_pages %}
+    <div class="pagination" style="display:flex;justify-content:center;gap:6px;margin-top:16px">
+        {% if tareas.has_previous %}
+        <a href="?page=1{% if estado_actual %}&estado={{ estado_actual }}{% endif %}{% if usuario_actual %}&usuario={{ usuario_actual }}{% endif %}{% if depto_actual %}&departamento={{ depto_actual }}{% endif %}" class="btn btn-small" title="Primera página">««</a>
+        <a href="?page={{ tareas.previous_page_number }}{% if estado_actual %}&estado={{ estado_actual }}{% endif %}{% if usuario_actual %}&usuario={{ usuario_actual }}{% endif %}{% if depto_actual %}&departamento={{ depto_actual }}{% endif %}" class="btn btn-small" title="Anterior">«</a>
+        {% endif %}
+        <span style="padding:4px 12px;color:var(--text-secondary);font-size:0.85rem">Pág. {{ tareas.number }}/{{ tareas.paginator.num_pages }}</span>
+        {% if tareas.has_next %}
+        <a href="?page={{ tareas.next_page_number }}{% if estado_actual %}&estado={{ estado_actual }}{% endif %}{% if usuario_actual %}&usuario={{ usuario_actual }}{% endif %}{% if depto_actual %}&departamento={{ depto_actual }}{% endif %}" class="btn btn-small" title="Siguiente">»</a>
+        <a href="?page={{ tareas.paginator.num_pages }}{% if estado_actual %}&estado={{ estado_actual }}{% endif %}{% if usuario_actual %}&usuario={{ usuario_actual }}{% endif %}{% if depto_actual %}&departamento={{ depto_actual }}{% endif %}" class="btn btn-small" title="Última página">»»</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

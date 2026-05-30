@@ -1,0 +1,38 @@
+{% extends 'core/base.html' %}
+{% block title %}Etiquetas{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>🏷️ Etiquetas</h1>
+</div>
+
+<div class="section">
+    <h3>Nueva etiqueta</h3>
+    <form method="post" action="{% url 'tag_create' %}" class="tag-form">
+        {% csrf_token %}
+        <div class="form-group inline-form">
+            <input type="text" name="nombre" placeholder="Nombre de la etiqueta" class="form-control" required style="max-width:250px">
+            <input type="color" name="color" value="#58a6ff" class="form-control color-picker" style="width:50px;padding:4px">
+            <button type="submit" class="btn btn-primary">Crear</button>
+        </div>
+    </form>
+</div>
+
+{% if etiquetas %}
+<div class="tag-grid">
+    {% for tag in etiquetas %}
+    <div class="tag-card" style="--tag-color: {{ tag.color }}">
+        <div class="tag-card-header">
+            <span class="tag-dot" style="background:{{ tag.color }}"></span>
+            <span class="tag-name">{{ tag.nombre }}</span>
+        </div>
+        <div class="tag-card-actions">
+            <a href="{% url 'task_list' %}?etiqueta={{ tag.id }}" class="btn btn-small">Ver tareas</a>
+            <a href="{% url 'tag_delete' tag.id %}" class="btn btn-small btn-danger" onclick="return confirm('¿Eliminar etiqueta {{ tag.nombre }}?')">Eliminar</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">No hay etiquetas. ¡Crea una!</p>
+{% endif %}
+{% endblock %}

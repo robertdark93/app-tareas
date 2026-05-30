@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestor de Tareas{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'core/style.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="{% url 'index' %}" class="nav-brand">📋 Gestor de Tareas</a>
+            {% if user.is_authenticated %}
+            <div class="nav-links">
+                <a href="{% url 'index' %}">Inicio</a>
+                <a href="{% url 'task_list' %}">Tareas</a>
+                <a href="{% url 'kanban' %}">Kanban</a>
+                <a href="{% url 'calendar' %}">Calendario</a>
+                <a href="{% url 'tag_list' %}">Etiquetas</a>
+                <a href="{% url 'note_list' %}">Notas</a>
+                <a href="{% url 'summary' %}">Resumen</a>
+                <a href="{% url 'notification_list' %}" class="notif-link">
+                    Notificaciones
+                    {% if notificaciones_no_leidas > 0 %}
+                    <span class="notif-badge">{{ notificaciones_no_leidas }}</span>
+                    {% endif %}
+                </a>
+                {% if user_es_admin %}
+                <a href="{% url 'admin_dashboard' %}" class="nav-admin">Admin</a>
+                {% elif user_es_moderador %}
+                <a href="{% url 'admin_tasks' %}" class="nav-admin">Admin</a>
+                {% endif %}
+                <button class="theme-toggle" id="themeToggle" title="Cambiar tema">🌓</button>
+                <a href="{% url 'profile' %}" class="user-name">
+                    {% if user.profile.avatar %}
+                    <img src="{{ user.profile.avatar.url }}" class="nav-avatar" alt="avatar">
+                    {% elif user.profile.avatar_icon %}
+                    <span class="nav-avatar-emoji" title="Icono">{{ user.profile.avatar_icon }}</span>
+                    {% else %}
+                    <span class="nav-avatar-emoji">{{ user.username|first|upper }}</span>
+                    {% endif %}
+                    {{ user.username }}
+                </a>
+                <form method="post" action="{% url 'logout' %}" class="logout-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-logout">Cerrar sesión</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+    {% block extra_scripts %}{% endblock %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // ── Theme toggle ──
+        const themeToggle = document.getElementById('themeToggle');
+        const saved = localStorage.getItem('theme');
+        if (saved === 'light') document.body.classList.add('light-theme');
+
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function() {
+                document.body.classList.toggle('light-theme');
+                const isLight = document.body.classList.contains('light-theme');
+                localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                themeToggle.textContent = isLight ? '🌙' : '🌓';
+            });
+            themeToggle.textContent = saved === 'light' ? '🌙' : '🌓';
+        }
+
+        // ── Notifications polling ──
+        {% if user.is_authenticated %}
+        const notifLink = document.querySelector('.notif-link');
+        const notifBadge = document.querySelector('.notif-badge');
+        function pollNotif() {
+            fetch('{% url "notification_unread_count" %}')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.count > 0) {
+                        if (notifBadge) {
+                            notifBadge.textContent = d.count;
+                        } else {
+                            const badge = document.createElement('span');
+                            badge.className = 'notif-badge';
+                            badge.textContent = d.count;
+                            if (notifLink) notifLink.appendChild(badge);
+                        }
+                    } else if (notifBadge) {
+                        notifBadge.remove();
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollNotif, 15000);
+        {% endif %}
+    });
+    </script>
+</body>
+</html>

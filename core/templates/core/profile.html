@@ -1,0 +1,94 @@
+{% extends 'core/base.html' %}
+{% block title %}Mi Perfil{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>👤 Mi Perfil</h1>
+    <div class="header-actions">
+        <a href="{% url 'index' %}" class="btn">← Volver</a>
+    </div>
+</div>
+
+<div class="section" style="max-width:500px">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="avatar-section" style="text-align:center;margin-bottom:1.5rem">
+            {% if profile.avatar %}
+                <img src="{{ profile.avatar.url }}" alt="avatar" class="profile-avatar-img">
+            {% elif profile.avatar_icon %}
+                <div class="profile-avatar-emoji" style="font-size:3rem">{{ profile.avatar_icon }}</div>
+            {% else %}
+                <div class="profile-avatar-emoji">{{ user.username|first|upper }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" class="form-control" value="{{ user.username }}" disabled>
+        </div>
+        <div class="form-group">
+            <label>Rol</label>
+            <input type="text" class="form-control" value="{{ profile.get_rol_display }}" disabled>
+        </div>
+        {% if profile.departamentos.all %}
+        <div class="form-group">
+            <label>Departamentos</label>
+            <input type="text" class="form-control" value="{{ profile.departamentos.all|join:', ' }}" disabled>
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <label for="id_first_name">Nombre</label>
+            {{ form.first_name }}
+        </div>
+        <div class="form-group">
+            <label for="id_last_name">Apellidos</label>
+            {{ form.last_name }}
+        </div>
+        <div class="form-group">
+            <label for="id_email">Correo</label>
+            {{ form.email }}
+        </div>
+
+        <hr style="border-color:var(--border);margin:1.5rem 0">
+        <h3 style="margin-bottom:1rem;font-size:1rem;color:var(--text-secondary)">🎭 Icono / Foto de perfil</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">
+            Elige un icono divertido o sube tu propia foto (max 2 MB).<br>
+            La foto tiene prioridad sobre el icono.
+        </p>
+        <div class="form-group">
+            <label for="id_avatar_icon">Seleccionar icono</label>
+            <select name="avatar_icon" id="id_avatar_icon" class="form-control">
+                <option value="">— Ninguno (letra inicial) —</option>
+                {% for val, label in form.fields.avatar_icon.choices %}
+                    {% if val %}
+                    <option value="{{ val }}" {% if profile.avatar_icon == val %}selected{% endif %}>{{ val }} {{ label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_avatar">Subir foto</label>
+            {{ form.avatar }}
+        </div>
+        {% if profile.avatar %}
+        <div class="form-group" style="margin-top:0.5rem">
+            <label>
+                {{ form.eliminar_avatar }} Eliminar foto
+            </label>
+        </div>
+        {% endif %}
+
+        <hr style="border-color:var(--border);margin:1.5rem 0">
+        <h3 style="margin-bottom:1rem;font-size:1rem;color:var(--text-secondary)">🔑 Cambiar contraseña</h3>
+        <div class="form-group">
+            <label for="id_password1">Nueva contraseña</label>
+            {{ form.password1 }}
+        </div>
+        <div class="form-group">
+            <label for="id_password2">Confirmar contraseña</label>
+            {{ form.password2 }}
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+    </form>
+</div>
+{% endblock %}

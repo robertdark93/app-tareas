@@ -1,0 +1,28 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ nota.titulo }}{% endblock %}
+{% block content %}
+<div class="detail-container">
+    <div class="page-header">
+        <h1>{{ nota.titulo }}</h1>
+        <div class="header-actions">
+            <a href="{% url 'note_update' nota.id %}" class="btn">Editar</a>
+            <a href="{% url 'note_delete' nota.id %}" class="btn btn-danger">Eliminar</a>
+            <a href="{% url 'note_list' %}" class="btn">Volver</a>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-row">
+            <span class="detail-label">Creada:</span>
+            <span>{{ nota.fecha_creacion|date:"d/m/Y" }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Actualizada:</span>
+            <span>{{ nota.actualizado|date:"d/m/Y H:i" }}</span>
+        </div>
+        <div class="detail-row">
+            <p class="detail-text">{{ nota.contenido|linebreaks }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

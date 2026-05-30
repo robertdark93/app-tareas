@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+{% block title %}Usuarios - Admin{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>👥 Usuarios</h1>
+        <a href="{% url 'admin_user_create' %}" class="btn btn-primary">+ Nuevo Usuario</a>
+    </div>
+
+    <div class="card-table">
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                    <th>Departamentos</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.first_name }} {{ u.last_name }}</td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td><span class="badge rol-{{ u.profile.rol }}">{{ u.profile.get_rol_display }}</span></td>
+                    <td>{% if u.profile.departamentos.all %}{{ u.profile.departamentos.all|join:", " }}{% else %}-{% endif %}</td>
+                    <td>{% if u.is_active %}✅{% else %}❌{% endif %}</td>
+                    <td>
+                        <a href="{% url 'admin_user_edit' u.id %}" class="btn btn-small">Editar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

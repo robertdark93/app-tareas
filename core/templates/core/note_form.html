@@ -1,0 +1,23 @@
+{% extends 'core/base.html' %}
+{% block title %}{% if object %}Editar Nota{% else %}Nueva Nota{% endif %}{% endblock %}
+{% block content %}
+<div class="form-container">
+    <h1>{% if object %}✏️ Editar Nota{% else %}📝 Nueva Nota{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+            <div class="field-error">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <a href="{% url 'note_list' %}" class="btn">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

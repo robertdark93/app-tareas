@@ -1,0 +1,64 @@
+{% extends 'core/base.html' %}
+{% block title %}Tablero por Usuario{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>👥 Tablero por Usuario</h1>
+        <a href="{% url 'admin_dashboard' %}" class="btn">← Admin</a>
+    </div>
+
+    {% for item in board_data %}
+    <div class="section" style="margin-bottom:20px">
+        <h2 style="display:flex;justify-content:space-between;align-items:center">
+            <span>👤 {{ item.usuario.username }} ({{ item.total }})</span>
+            <span style="font-size:0.8rem;font-weight:400">
+                ⏳ {{ item.pendientes.count }} | ⚡ {{ item.proceso.count }} | ✅ {{ item.terminadas.count }}
+            </span>
+        </h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border:1px solid var(--border)">
+                <h3 style="font-size:0.85rem;color:var(--yellow);margin-bottom:8px">⏳ Pendientes</h3>
+                {% for t in item.pendientes %}
+                <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--yellow);font-size:0.82rem">
+                    <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
+                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
+                        <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>
+                        {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p style="color:var(--text-muted);font-size:0.8rem">Sin tareas</p>
+                {% endfor %}
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border:1px solid var(--border)">
+                <h3 style="font-size:0.85rem;color:var(--cyan);margin-bottom:8px">⚡ En Proceso</h3>
+                {% for t in item.proceso %}
+                <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--cyan);font-size:0.82rem">
+                    <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
+                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
+                        <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>
+                        {% if t.horas_tomadas %}<span>⏱ {{ t.horas_tomadas }}h</span>{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p style="color:var(--text-muted);font-size:0.8rem">Sin tareas</p>
+                {% endfor %}
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border:1px solid var(--border)">
+                <h3 style="font-size:0.85rem;color:var(--green);margin-bottom:8px">✅ Terminadas</h3>
+                {% for t in item.terminadas %}
+                <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--green);font-size:0.82rem;opacity:0.7">
+                    <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
+                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
+                        {% if t.fecha_completada %}<span>✅ {{ t.fecha_completada|date:"d/m" }}</span>{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p style="color:var(--text-muted);font-size:0.8rem">Sin tareas</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
