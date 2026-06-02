@@ -81,30 +81,39 @@
             themeToggle.textContent = saved === 'light' ? '🌙' : '🌓';
         }
 
-        // ── Notifications polling ──
+        // ── Notifications WebSocket ──
         {% if user.is_authenticated %}
         const notifLink = document.querySelector('.notif-link');
-        const notifBadge = document.querySelector('.notif-badge');
-        function pollNotif() {
-            fetch('{% url "notification_unread_count" %}')
-                .then(r => r.json())
-                .then(d => {
-                    if (d.count > 0) {
-                        if (notifBadge) {
-                            notifBadge.textContent = d.count;
-                        } else {
-                            const badge = document.createElement('span');
-                            badge.className = 'notif-badge';
-                            badge.textContent = d.count;
-                            if (notifLink) notifLink.appendChild(badge);
-                        }
-                    } else if (notifBadge) {
-                        notifBadge.remove();
-                    }
-                })
-                .catch(() => {});
+        function updateNotifBadge(count) {
+            let badge = document.querySelector('.notif-badge');
+            if (count > 0) {
+                if (badge) {
+                    badge.textContent = count;
+                } else {
+                    badge = document.createElement('span');
+                    badge.className = 'notif-badge';
+                    badge.textContent = count;
+                    if (notifLink) notifLink.appendChild(badge);
+                }
+            } else if (badge) {
+                badge.remove();
+            }
         }
-        setInterval(pollNotif, 15000);
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = protocol + '//' + window.location.host + '/ws/notifications/';
+        let ws = null;
+        function connectWs() {
+            ws = new WebSocket(wsUrl);
+            ws.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.count !== undefined) updateNotifBadge(data.count);
+            };
+            ws.onclose = function() {
+                setTimeout(connectWs, 3000);
+            };
+        }
+        connectWs();
         {% endif %}
     });
     </script>

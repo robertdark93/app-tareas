@@ -39,7 +39,8 @@
             <thead>
                 <tr>
                     <th>Título</th>
-                    <th>Usuario</th>
+                    <th>Responsable</th>
+                    <th>Creada por</th>
                     <th>Departamento</th>
                     <th>Estado</th>
                     <th>Prioridad</th>
@@ -51,8 +52,11 @@
             <tbody>
                 {% for t in tareas %}
                 <tr>
-                    <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo|truncatechars:40 }}</a></td>
+                    <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo|truncatechars:40 }}</a>
+                        {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario and t.usuario != user %}<span class="ownership-badge depto">Depto</span>{% endif %}
+                    </td>
                     <td>{{ t.usuario.username }}</td>
+                    <td>{{ t.creado_por.username|default:"-" }}</td>
                     <td>{{ t.departamento|default:"-" }}</td>
                     <td><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
                     <td><span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span></td>
@@ -63,7 +67,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" class="empty">No hay tareas</td></tr>
+                <tr><td colspan="9" class="empty">No hay tareas</td></tr>
                 {% endfor %}
             </tbody>
         </table>

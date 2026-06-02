@@ -184,6 +184,27 @@ a:hover { color: var(--accent-hover); }
     background: rgba(255,255,255,0.06);
     color: var(--text-primary);
 }
+.ownership-badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+    line-height: 1.4;
+    vertical-align: middle;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.ownership-badge.mia {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+}
+.ownership-badge.depto {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+}
 .notif-link { position: relative; }
 .notif-badge {
     position: absolute; top: -4px; right: -4px;
@@ -671,6 +692,61 @@ select.form-control {
     font-weight: 500;
     border: 1px solid;
 }
+
+/* Subtask progress bar */
+.subtask-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+.subtask-progress .progress-track {
+    flex: 1;
+    max-width: 100px;
+    height: 5px;
+    background: var(--bg-card);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.subtask-progress .progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* Active filter tags */
+.filter-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(88,166,255,0.1);
+    border: 1px solid rgba(88,166,255,0.3);
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    text-decoration: none;
+    transition: all var(--transition);
+}
+.filter-tag:hover {
+    background: rgba(88,166,255,0.2);
+    border-color: var(--accent);
+}
+.filter-tag .remove {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--text-muted);
+}
+.filter-tag .remove:hover { color: var(--red); }
 
 /* Tag Filters */
 .filter-label {

@@ -5,9 +5,14 @@
     <div class="page-header">
         <h1>{{ tarea.titulo }}</h1>
         <div class="header-actions">
+            {% if task_locked %}
+            <span class="btn btn-danger" style="opacity:0.7;cursor:default" title="Bloqueada por {{ locked_by_user }}">🔒 {{ locked_by_user }}</span>
+            {% else %}
             <a href="{% url 'task_update' tarea.id %}" class="btn" title="Editar tarea">✏️ Editar</a>
+            {% endif %}
             <a href="{% url 'task_delete' tarea.id %}" class="btn btn-danger" title="Eliminar tarea">🗑️</a>
             <button class="btn" id="shareBtn" title="Compartir enlace de esta tarea" data-pk="{{ tarea.id }}">🔗</button>
+            <button class="btn" id="watchBtn" title="Seguir esta tarea" data-pk="{{ tarea.id }}" data-watching="{{ is_watching|yesno:'true,false' }}">{% if is_watching %}🔔{% else %}🔕{% endif %}</button>
             <a href="{% url 'task_list' %}" class="btn" title="Volver a lista de tareas">← Volver</a>
         </div>
     </div>
@@ -16,6 +21,10 @@
         <div class="detail-row">
             <span class="detail-label">Asignado a</span>
             <span>{{ tarea.usuario.get_full_name|default:tarea.usuario.username }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Creada por</span>
+            <span>{{ tarea.creado_por.get_full_name|default:tarea.creado_por.username|default:"-" }}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Estado</span>
@@ -241,11 +250,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── Keyboard shortcuts ──
     document.addEventListener('keydown', function(e) {
-        // Escape dismisses messages
         if (e.key === 'Escape') {
             document.querySelectorAll('.message').forEach(m => m.remove());
         }
     });
+
+    // ── Watch / Unwatch ──
+    const watchBtn = document.getElementById('watchBtn');
+    if (watchBtn) {
+        let watching = watchBtn.dataset.watching === 'true';
+        watchBtn.addEventListener('click', function() {
+            const url = watching ? '{% url "unwatch_task" tarea.id %}' : '{% url "watch_task" tarea.id %}';
+            fetch(url, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+                .then(r => r.json())
+                .then(d => {
+                    watching = d.watching;
+                    watchBtn.textContent = watching ? '🔔' : '🔕';
+                    watchBtn.dataset.watching = watching ? 'true' : 'false';
+                    watchBtn.title = watching ? 'Dejar de seguir' : 'Seguir esta tarea';
+                })
+                .catch(() => {});
+        });
+    }
+
+    // ── Task Lock on edit page load ──
+    // Lock is acquired when entering edit mode (handled separately in task_form.html)
 });
 </script>
 {% endblock %}

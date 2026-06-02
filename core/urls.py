@@ -76,4 +76,12 @@ urlpatterns = [
     # Share
     path('tasks/<int:pk>/generate-share-token/', views.generate_share_token, name='generate_share_token'),
     path('shared/<uuid:token>/', views.shared_task, name='shared_task'),
+
+    # Watch / Unwatch
+    path('tasks/<int:pk>/watch/', views.watch_task, name='watch_task'),
+    path('tasks/<int:pk>/unwatch/', views.unwatch_task, name='unwatch_task'),
+
+    # Task Lock
+    path('tasks/<int:pk>/lock/', views.task_lock, name='task_lock'),
+    path('tasks/<int:pk>/unlock/', views.task_unlock, name='task_unlock'),
 ]

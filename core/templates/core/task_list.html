@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load core_extras %}
 {% block title %}Tareas{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -41,6 +42,15 @@
 </div>
 {% endif %}
 
+{% if estado_actual or prioridad_actual or etiqueta_actual %}
+<div class="filter-tags">
+    <span style="font-size:0.75rem;color:var(--text-muted)">Filtros activos:</span>
+    {% if estado_actual %}<a href="?{% if q_actual %}q={{ q_actual }}&{% endif %}{% if prioridad_actual %}prioridad={{ prioridad_actual }}&{% endif %}{% if etiqueta_actual %}etiqueta={{ etiqueta_actual }}{% endif %}" class="filter-tag">Estado: {{ estado_actual }} <span class="remove">✕</span></a>{% endif %}
+    {% if prioridad_actual %}<a href="?{% if q_actual %}q={{ q_actual }}&{% endif %}{% if estado_actual %}estado={{ estado_actual }}&{% endif %}{% if etiqueta_actual %}etiqueta={{ etiqueta_actual }}{% endif %}" class="filter-tag">Prioridad: {{ prioridad_actual }} <span class="remove">✕</span></a>{% endif %}
+    {% if etiqueta_actual %}<a href="?{% if q_actual %}q={{ q_actual }}&{% endif %}{% if estado_actual %}estado={{ estado_actual }}&{% endif %}{% if prioridad_actual %}prioridad={{ prioridad_actual }}{% endif %}" class="filter-tag">Etiqueta #{{ etiqueta_actual }} <span class="remove">✕</span></a>{% endif %}
+</div>
+{% endif %}
+
 {% if tareas %}
 <form id="bulk-form" method="post" action="{% url 'bulk_action' %}">
     {% csrf_token %}
@@ -64,8 +74,10 @@
             </div>
             <div class="task-info">
                 <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                 <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                <small>👤 {{ t.usuario.username }}{% if t.creado_por %} · creada por {{ t.creado_por.username }}{% endif %}</small>
                 {% if t.fecha_vencimiento %}
                 <small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>
                 {% endif %}
@@ -75,6 +87,14 @@
                 {% if t.recurrente %}
                 <small class="recurring-badge">🔄 {{ t.get_frecuencia_display }}</small>
                 {% endif %}
+                {% with subtask_progress|get_item:t.id as sp %}
+                {% if sp %}
+                <div class="subtask-progress">
+                    <span>📋 {{ sp.done }}/{{ sp.total }}</span>
+                    <div class="progress-track"><div class="progress-fill" style="width:{% widthratio sp.done sp.total 100 %}%"></div></div>
+                </div>
+                {% endif %}
+                {% endwith %}
                 {% if t.etiquetas.all %}
                 <div class="task-tags">
                     {% for tag in t.etiquetas.all %}

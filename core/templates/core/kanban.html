@@ -100,6 +100,7 @@
         {% for t in pendientes %}
         <div class="kanban-card pendiente" data-id="{{ t.id }}" draggable="true">
             <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
             <div class="card-meta">
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                 {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
@@ -123,6 +124,7 @@
         {% for t in proceso %}
         <div class="kanban-card proceso" data-id="{{ t.id }}" draggable="true">
             <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
             <div class="card-meta">
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                 {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
@@ -146,6 +148,7 @@
         {% for t in terminadas %}
         <div class="kanban-card terminada" data-id="{{ t.id }}" draggable="true">
             <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
             <div class="card-meta">
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                 {% if t.fecha_completada %}<span>✅ {{ t.fecha_completada|date:"d/m" }}</span>{% endif %}

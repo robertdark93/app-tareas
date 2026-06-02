@@ -124,6 +124,8 @@ class Task(models.Model):
     ]
 
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Responsable')
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='tareas_creadas', verbose_name='Creada por')
     titulo = models.CharField(max_length=200, verbose_name='Título')
     comentarios = models.TextField(blank=True, verbose_name='Comentarios')
     estado = models.CharField(max_length=20, choices=ESTADOS, default='pendiente', verbose_name='Estado')
@@ -146,6 +148,9 @@ class Task(models.Model):
     orden = models.PositiveIntegerField(default=0, verbose_name='Orden')
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
+    locked_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='tareas_bloqueadas', verbose_name='Bloqueada por')
+    locked_at = models.DateTimeField(null=True, blank=True, verbose_name='Bloqueada desde')
 
     class Meta:
         ordering = ['orden', '-fecha_creacion', '-creado']
@@ -283,3 +288,58 @@ class LoginLog(models.Model):
 
     def __str__(self):
         return f'{self.username} - {"✅" if self.success else "❌"} - {self.creado}'
+
+
+class PasswordHistory(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_history')
+    password = models.CharField(max_length=128, verbose_name='Hash de contraseña')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'Historial de contraseña'
+        verbose_name_plural = 'Historial de contraseñas'
+
+    def __str__(self):
+        return f'{self.usuario.username} - {self.creado}'
+
+
+class AdminLog(models.Model):
+    ACCIONES = [
+        ('crear_usuario', 'Crear usuario'),
+        ('editar_usuario', 'Editar usuario'),
+        ('eliminar_tarea', 'Eliminar tarea'),
+        ('reasignar_masiva', 'Reasignación masiva'),
+        ('cambiar_rol', 'Cambiar rol'),
+        ('backup', 'Copia de seguridad'),
+        ('otro', 'Otro'),
+    ]
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Administrador')
+    accion = models.CharField(max_length=30, choices=ACCIONES, verbose_name='Acción')
+    detalle = models.TextField(blank=True, verbose_name='Detalle')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'Bitácora de administración'
+        verbose_name_plural = 'Bitácoras de administración'
+
+    def __str__(self):
+        return f'{self.usuario.username if self.usuario else "?"} - {self.get_accion_display()} - {self.creado}'
+
+
+class TaskWatcher(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tareas_observadas',
+                                verbose_name='Usuario')
+    tarea = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='observadores',
+                              verbose_name='Tarea')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['usuario', 'tarea']
+        ordering = ['-creado']
+        verbose_name = 'Observador de tarea'
+        verbose_name_plural = 'Observadores de tareas'
+
+    def __str__(self):
+        return f'{self.usuario.username} → {self.tarea.titulo}'

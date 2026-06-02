@@ -21,9 +21,14 @@ from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.core.management import call_command
 from django.core.paginator import Paginator
+from django.utils import timezone
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+import re
 
 from .models import (Task, Note, Notification, Tag, Attachment,
-                     Department, Profile, TaskTemplate, TaskComment, TaskLog, LoginLog)
+                     Department, Profile, TaskTemplate, TaskComment, TaskLog, LoginLog,
+                     PasswordHistory, AdminLog, TaskWatcher)
 from .forms import (TaskCreateForm, TaskUpdateForm, NoteForm,
                     AdminUserCreateForm, AdminUserEditForm, AdminDepartmentForm,
                     CommentForm, TaskTemplateForm, ProfileForm)
@@ -50,6 +55,15 @@ except ImportError:
 
 def crear_notificacion(usuario, tarea, mensaje):
     Notification.objects.create(usuario=usuario, tarea=tarea, mensaje=mensaje)
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'notifications_{usuario.id}',
+        {
+            'type': 'notification_event',
+            'count': Notification.objects.filter(usuario=usuario, leido=False).count(),
+            'message': mensaje,
+        },
+    )
 
 
 def crear_log(tarea, usuario, accion, detalle=''):
@@ -70,6 +84,10 @@ def tareas_visibles(usuario):
     if deptos:
         qs = qs | Task.objects.filter(departamento__in=deptos)
     return qs.distinct()
+
+
+def _admin_log(usuario, accion, detalle=''):
+    AdminLog.objects.create(usuario=usuario, accion=accion, detalle=detalle)
 
 
 # ─── Role decorators ──────────────────────────────────────────────
@@ -116,6 +134,13 @@ def index(request):
         'media': qs.filter(prioridad='media').count(),
         'baja': qs.filter(prioridad='baja').count(),
     }
+    # Tendencia: completadas por día últimos 14 días
+    trend_labels = []
+    trend_data = []
+    for i in range(13, -1, -1):
+        d = hoy - timedelta(days=i)
+        trend_labels.append(d.strftime('%d/%m'))
+        trend_data.append(qs.filter(estado='terminada', fecha_completada=d).count())
     context = {
         'tareas_pendientes': qs.filter(estado='pendiente'),
         'tareas_proceso': qs.filter(estado='proceso'),
@@ -131,6 +156,8 @@ def index(request):
         'eficiencia': _calcular_eficiencia(qs),
         'chart_estados': chart_estados,
         'chart_prioridades': prioridad_counts,
+        'trend_labels': trend_labels,
+        'trend_data': trend_data,
     }
     return render(request, 'core/index.html', context)
 
@@ -170,7 +197,7 @@ class TaskListView(LoginRequiredMixin, ListView):
         if prioridad: qs = qs.filter(prioridad=prioridad)
         if q: qs = qs.filter(titulo__icontains=q)
         if etiqueta: qs = qs.filter(etiquetas__id=etiqueta)
-        return qs
+        return qs.prefetch_related('subtareas').select_related('usuario', 'creado_por')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -178,6 +205,14 @@ class TaskListView(LoginRequiredMixin, ListView):
             ctx[f'{k}_actual'] = self.request.GET.get(k, '')
         ctx['etiquetas'] = Tag.objects.filter(usuario=self.request.user)
         ctx['user_es_admin'] = Profile.objects.filter(usuario=self.request.user, rol='admin').exists()
+        # Subtask progress for each task on current page
+        ctx['subtask_progress'] = {}
+        for t in ctx['tareas']:
+            subs = list(t.subtareas.all())
+            if subs:
+                total = len(subs)
+                done = sum(1 for s in subs if s.estado == 'terminada')
+                ctx['subtask_progress'][t.id] = {'total': total, 'done': done}
         return ctx
 
 
@@ -203,6 +238,7 @@ def bulk_action(request):
     elif action == 'eliminar' and es_admin:
         count = qs.count()
         qs.delete()
+        _admin_log(request.user, 'eliminar_tarea', f'{count} tarea(s) eliminada(s) masivamente')
         messages.success(request, f'{count} tarea(s) eliminada(s).')
 
     elif action == 'eliminar' and not es_admin:
@@ -214,6 +250,7 @@ def bulk_action(request):
             try:
                 nuevo_user = User.objects.get(pk=nuevo_user_id)
                 count = qs.update(usuario=nuevo_user)
+                _admin_log(request.user, 'reasignar_masiva', f'{count} tarea(s) reasignada(s) a {nuevo_user.username}')
                 messages.success(request, f'{count} tarea(s) reasignada(s).')
                 for t in qs:
                     TaskLog.objects.create(tarea=t, usuario=request.user,
@@ -240,6 +277,9 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx['comentarios'] = self.object.task_comentarios.all()
         ctx['logs'] = self.object.logs.all()[:20]
         ctx['comment_form'] = CommentForm()
+        ctx['is_watching'] = TaskWatcher.objects.filter(usuario=self.request.user, tarea=self.object).exists()
+        ctx['task_locked'] = self.object.locked_by is not None and self.object.locked_by != self.request.user
+        ctx['locked_by_user'] = self.object.locked_by.username if self.object.locked_by else None
         return ctx
 
 
@@ -251,11 +291,25 @@ def add_comment(request, pk):
     if request.method == 'POST':
         form = CommentForm(request.POST)
         if form.is_valid():
+            contenido = form.cleaned_data['contenido']
             TaskComment.objects.create(
                 tarea=tarea, usuario=request.user,
-                contenido=form.cleaned_data['contenido'],
+                contenido=contenido,
             )
             crear_log(tarea, request.user, 'editada', 'Nuevo comentario añadido')
+            # Menciones @usuario
+            for match in re.finditer(r'@(\w+)', contenido):
+                try:
+                    mencionado = User.objects.get(username=match.group(1))
+                    if mencionado != request.user:
+                        crear_notificacion(mencionado, tarea,
+                            f'{request.user.username} te mencionó en "{tarea.titulo}"')
+                except User.DoesNotExist:
+                    pass
+            # Notificar a observadores
+            for watcher in TaskWatcher.objects.filter(tarea=tarea).exclude(usuario=request.user):
+                crear_notificacion(watcher.usuario, tarea,
+                    f'Nuevo comentario en "{tarea.titulo}" por {request.user.username}')
             messages.success(request, 'Comentario añadido.')
     return redirect('task_detail', pk=pk)
 
@@ -273,6 +327,7 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.usuario = form.cleaned_data['usuario']
+        form.instance.creado_por = self.request.user
         form.instance.estado = 'pendiente'
         resp = super().form_valid(form)
         for f in self.request.FILES.getlist('archivos'):
@@ -280,6 +335,11 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
         ets = form.cleaned_data.get('etiquetas')
         if ets: self.object.etiquetas.set(ets)
         crear_notificacion(self.object.usuario, self.object, f'Nueva tarea: "{self.object.titulo}"')
+        # Notificar a observadores del padre si es subtarea
+        if self.object.parent:
+            for watcher in TaskWatcher.objects.filter(tarea=self.object.parent).exclude(usuario=self.request.user):
+                crear_notificacion(watcher.usuario, self.object,
+                    f'Nueva subtarea en "{self.object.parent.titulo}" por {self.request.user.username}')
         crear_log(self.object, self.request.user, 'creada', f'Creada por {self.request.user.username}')
         messages.success(self.request, 'Tarea creada.')
         return resp
@@ -292,6 +352,16 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return Task.objects.filter(usuario=self.request.user)
+
+    def dispatch(self, request, *args, **kwargs):
+        resp = super().dispatch(request, *args, **kwargs)
+        tarea = self.get_object()
+        if tarea.locked_by and tarea.locked_by != request.user:
+            elapsed = (timezone.now() - tarea.locked_at).total_seconds() / 60
+            if elapsed < LOCK_TIMEOUT_MINUTES:
+                messages.error(request, f'Tarea bloqueada por {tarea.locked_by.username} para edición.')
+                return redirect('task_detail', pk=tarea.pk)
+        return resp
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -341,7 +411,17 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
         if ets is not None: self.object.etiquetas.set(ets)
         for f in self.request.FILES.getlist('archivos'):
             Attachment.objects.create(tarea=self.object, archivo=f, nombre=f.name)
+        # Notificar a observadores
+        if cambios:
+            for watcher in TaskWatcher.objects.filter(tarea=self.object).exclude(usuario=self.request.user):
+                crear_notificacion(watcher.usuario, self.object,
+                    f'"{self.object.titulo}" actualizada por {self.request.user.username}')
         crear_log(self.object, self.request.user, 'editada', '; '.join(cambios) or 'Editada')
+        # Liberar lock
+        if self.object.locked_by == self.request.user:
+            self.object.locked_by = None
+            self.object.locked_at = None
+            self.object.save(update_fields=['locked_by', 'locked_at'])
         messages.success(self.request, 'Tarea actualizada.')
         return resp
 
@@ -351,6 +431,7 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
         n = Task.objects.create(usuario=tarea.usuario, titulo=tarea.titulo, comentarios=tarea.comentarios,
             prioridad=tarea.prioridad, recurrente=tarea.recurrente, frecuencia=tarea.frecuencia,
             parent=tarea.parent, horas_estimadas=tarea.horas_estimadas,
+            creado_por=tarea.creado_por,
             fecha_vencimiento=tarea.fecha_vencimiento + d if tarea.fecha_vencimiento else None,
             recordatorio=tarea.recordatorio + d if tarea.recordatorio else None)
         if tarea.etiquetas.exists(): n.etiquetas.set(tarea.etiquetas.all())
@@ -368,6 +449,8 @@ class TaskDeleteView(LoginRequiredMixin, DeleteView):
         return Task.objects.none()
 
     def delete(self, request, *args, **kwargs):
+        tarea = self.get_object()
+        _admin_log(request.user, 'eliminar_tarea', f'Tarea "{tarea.titulo}" (id={tarea.id})')
         messages.success(request, 'Tarea eliminada.')
         return super().delete(request, *args, **kwargs)
 
@@ -391,7 +474,7 @@ def task_complete(request, pk):
                 Task.objects.create(usuario=tarea.usuario, titulo=tarea.titulo,
                     comentarios=tarea.comentarios, prioridad=tarea.prioridad,
                     recurrente=tarea.recurrente, frecuencia=tarea.frecuencia,
-                    horas_estimadas=tarea.horas_estimadas,
+                    horas_estimadas=tarea.horas_estimadas, creado_por=tarea.creado_por,
                     fecha_vencimiento=tarea.fecha_vencimiento + d if tarea.fecha_vencimiento else None,
                     recordatorio=tarea.recordatorio + d if tarea.recordatorio else None)
                 messages.info(request, 'Siguiente ocurrencia creada.')
@@ -476,7 +559,8 @@ def template_use(request, pk):
     t = get_object_or_404(TaskTemplate, pk=pk, usuario=request.user)
     from django.views.generic.edit import ModelFormMixin
     task = Task.objects.create(
-        usuario=request.user, titulo=t.titulo, comentarios=t.comentarios,
+        usuario=request.user, creado_por=request.user,
+        titulo=t.titulo, comentarios=t.comentarios,
         prioridad=t.prioridad, horas_estimadas=t.horas_estimadas,
         recurrente=t.recurrente, frecuencia=t.frecuencia,
     )
@@ -501,7 +585,7 @@ def calendar_view(request):
     dias_mes = cal.monthdatescalendar(ano, mes)
     pd = date(ano, mes, 1)
     ud = date(ano, mes, cal_module.monthrange(ano, mes)[1])
-    qs = tareas_visibles(request.user)
+    qs = Task.objects.filter(usuario=request.user)
     tareas_mes = qs.filter(fecha_vencimiento__gte=pd, fecha_vencimiento__lte=ud)
     tareas_sin_fecha = qs.filter(fecha_vencimiento__isnull=True, estado__in=['pendiente', 'proceso'])
     por_dia = {}
@@ -875,6 +959,7 @@ def admin_dashboard(request):
         'chart_depto_labels': depto_labels,
         'chart_depto_data': depto_data,
         'login_logs': LoginLog.objects.all()[:10],
+        'admin_logs': AdminLog.objects.all()[:15],
     })
 
 
@@ -900,6 +985,8 @@ def admin_user_create(request):
             p, _ = Profile.objects.get_or_create(usuario=u)
             p.rol = form.cleaned_data['rol']; p.save()
             p.departamentos.set(form.cleaned_data.get('departamentos', []))
+            PasswordHistory.objects.create(usuario=u, password=u.password)
+            _admin_log(request.user, 'crear_usuario', f'Usuario "{u.username}" rol={p.rol}')
             messages.success(request, f'Usuario "{u.username}" creado.')
             return redirect('admin_users')
     return render(request, 'core/admin/user_form.html', {'form': form, 'crear': True})
@@ -918,10 +1005,24 @@ def admin_user_edit(request, pk):
         for fld in ('email', 'first_name', 'last_name'):
             setattr(u, fld, form.cleaned_data[fld])
         u.is_active = form.cleaned_data['is_active']
-        if form.cleaned_data['nueva_password']: u.set_password(form.cleaned_data['nueva_password'])
+        if form.cleaned_data['nueva_password']:
+            u.set_password(form.cleaned_data['nueva_password'])
         u.save()
+        if form.cleaned_data['nueva_password']:
+            PasswordHistory.objects.create(usuario=u, password=u.password)
         p.rol = form.cleaned_data['rol']; p.save()
         p.departamentos.set(form.cleaned_data.get('departamentos', []))
+        cambios = []
+        for fld in ('email', 'first_name', 'last_name', 'is_active'):
+            old = getattr(u, fld) if fld != 'is_active' else u.is_active
+            new = form.cleaned_data[fld]
+            if old != new:
+                cambios.append(f'{fld}: {old} → {new}')
+        if form.cleaned_data['nueva_password']:
+            cambios.append('password cambiada')
+        if p.rol != Profile.objects.get(usuario=u).rol:
+            cambios.append(f'rol: → {p.rol}')
+        _admin_log(request.user, 'editar_usuario', f'Usuario "{u.username}": {"; ".join(cambios)}')
         messages.success(request, f'Usuario "{u.username}" actualizado.')
         return redirect('admin_users')
     return render(request, 'core/admin/user_form.html', {'form': form, 'crear': False, 'edit_user': u})
@@ -981,6 +1082,7 @@ def admin_backups(request):
         accion = request.POST.get('accion')
         if accion == 'crear':
             call_command('backup_tareas')
+            _admin_log(request.user, 'backup', 'Copia de seguridad creada desde admin')
             messages.success(request, 'Copia de seguridad creada.')
         elif accion == 'eliminar':
             filename = request.POST.get('filename', '')
@@ -1078,6 +1180,58 @@ def shared_task(request, token):
     return render(request, 'core/shared_task.html', {'tarea': tarea})
 
 
+# ─── Watch / Unwatch ──────────────────────────────────────────
+
+@login_required
+@require_POST
+def watch_task(request, pk):
+    tarea = get_object_or_404(Task, pk=pk)
+    if tarea not in tareas_visibles(request.user):
+        return JsonResponse({'error': 'No'}, status=403)
+    _, created = TaskWatcher.objects.get_or_create(usuario=request.user, tarea=tarea)
+    return JsonResponse({'watching': True, 'created': created})
+
+
+@login_required
+@require_POST
+def unwatch_task(request, pk):
+    tarea = get_object_or_404(Task, pk=pk)
+    TaskWatcher.objects.filter(usuario=request.user, tarea=tarea).delete()
+    return JsonResponse({'watching': False})
+
+
+# ─── Task Locking ─────────────────────────────────────────────
+
+LOCK_TIMEOUT_MINUTES = 10
+
+
+@login_required
+@require_POST
+def task_lock(request, pk):
+    tarea = get_object_or_404(Task, pk=pk)
+    if tarea not in tareas_visibles(request.user):
+        return JsonResponse({'error': 'No'}, status=403)
+    if tarea.locked_by and tarea.locked_by != request.user:
+        elapsed = (timezone.now() - tarea.locked_at).total_seconds() / 60
+        if elapsed < LOCK_TIMEOUT_MINUTES:
+            return JsonResponse({'locked': True, 'by': tarea.locked_by.username})
+    tarea.locked_by = request.user
+    tarea.locked_at = timezone.now()
+    tarea.save(update_fields=['locked_by', 'locked_at'])
+    return JsonResponse({'locked': True, 'by': request.user.username})
+
+
+@login_required
+@require_POST
+def task_unlock(request, pk):
+    tarea = get_object_or_404(Task, pk=pk)
+    if tarea.locked_by == request.user:
+        tarea.locked_by = None
+        tarea.locked_at = None
+        tarea.save(update_fields=['locked_by', 'locked_at'])
+    return JsonResponse({'locked': False})
+
+
 @login_required
 def profile(request):
     u = request.user
@@ -1095,6 +1249,8 @@ def profile(request):
         if password:
             u.set_password(password)
         u.save()
+        if password:
+            PasswordHistory.objects.create(usuario=u, password=u.password)
 
         avatar_file = form.cleaned_data.get('avatar')
         icon = request.POST.get('avatar_icon', '')

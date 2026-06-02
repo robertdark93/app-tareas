@@ -36,3 +36,21 @@ class ComplexityValidator:
             'La contraseña debe tener al menos 8 caracteres, '
             'incluir mayúsculas, minúsculas, números y un carácter especial.'
         )
+
+
+class PasswordHistoryValidator:
+    def validate(self, password, user=None):
+        if user is None:
+            return
+        from .models import PasswordHistory
+        history = PasswordHistory.objects.filter(usuario=user).order_by('-creado')[:5]
+        for entry in history:
+            from django.contrib.auth.hashers import check_password
+            if check_password(password, entry.password):
+                raise ValidationError(
+                    _('No puedes reutilizar una de tus últimas 5 contraseñas.'),
+                    code='password_reused',
+                )
+
+    def get_help_text(self):
+        return _('No puedes reutilizar ninguna de tus últimas 5 contraseñas.')

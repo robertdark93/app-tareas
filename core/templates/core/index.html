@@ -39,6 +39,10 @@
             <h3>Prioridad</h3>
             <canvas id="chartPrioridad"></canvas>
         </div>
+        <div class="chart-card">
+            <h3>Tendencia (últimos 14 días)</h3>
+            <canvas id="chartTendencia"></canvas>
+        </div>
     </div>
     {% endif %}
 
@@ -63,6 +67,7 @@
             <li class="task-item status-{{ t.estado }}">
                 <div class="task-info">
                     <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                     <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                     {% if t.etiquetas.all %}
                     <div class="task-tags">
@@ -74,6 +79,7 @@
                     {% if t.fecha_vencimiento %}
                     <small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>
                     {% endif %}
+                    {% with t.subtareas.count as sc %}{% if sc %}<small>📋 {{ sc }} subtarea{{ sc|pluralize:"s" }}</small>{% endif %}{% endwith %}
                 </div>
             </li>
             {% endfor %}
@@ -101,6 +107,7 @@
                 <li class="task-item status-{{ t.estado }}">
                     <div class="task-info">
                         <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                        {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                         <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
                         {% if t.etiquetas.all %}
                         <div class="task-tags">
@@ -126,6 +133,7 @@
                 <li class="task-item status-pendiente">
                     <div class="task-info">
                         <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                        {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                         {% if t.prioridad == 'alta' or t.prioridad == 'urgente' %}
                         <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                         {% endif %}
@@ -215,6 +223,31 @@ new Chart(document.getElementById('chartPrioridad'), {
         scales: {
             y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
             x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+    }
+});
+
+new Chart(document.getElementById('chartTendencia'), {
+    type: 'line',
+    data: {
+        labels: [{% for l in trend_labels %}'{{ l }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Completadas',
+            data: [{% for d in trend_data %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: colores.terminada,
+            backgroundColor: colores.terminada + '33',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+            pointBackgroundColor: colores.terminada,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
+            x: { ticks: { color: '#8b949e', maxTicksLimit: 7 }, grid: { display: false } }
         }
     }
 });

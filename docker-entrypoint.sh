@@ -33,6 +33,5 @@ else:
 "
 
 mkdir -p /app/media/avatars /app/backups
-chown -R app:app /app/media /app/backups
 
-exec python manage.py runserver 0.0.0.0:5006
+exec daphne -b 0.0.0.0 -p 5006 tareas_project.asgi:application

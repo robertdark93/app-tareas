@@ -3,6 +3,11 @@
 {% block content %}
 <div class="form-container">
     <h1>{% if object %}✏️ Editar Tarea{% else %}➕ Nueva Tarea{% endif %}</h1>
+    {% if object and es_editar %}
+    <div style="margin-bottom:12px;font-size:0.82rem;color:var(--text-muted)">
+        🔒 Bloqueo adquirido automáticamente al entrar — se libera al guardar o cancelar.
+    </div>
+    {% endif %}
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {% if es_editar %}
@@ -52,8 +57,38 @@
         {% endfor %}
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Guardar</button>
-            <a href="{% url 'task_list' %}" class="btn">Cancelar</a>
+            <a href="{% url 'task_detail' object.id %}" class="btn" id="cancelEditBtn">Cancelar</a>
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Lock task on edit page load
+    {% if object and es_editar %}
+    const pk = {{ object.id }};
+    fetch('{% url "task_lock" object.id %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    }).catch(() => {});
+
+    // Release lock when leaving
+    window.addEventListener('beforeunload', function() {
+        navigator.sendBeacon('{% url "task_unlock" object.id %}', '');
+    });
+
+    document.getElementById('cancelEditBtn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        fetch('{% url "task_unlock" object.id %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        }).finally(() => {
+            window.location.href = this.href;
+        });
+    });
+    {% endif %}
+});
+</script>
 {% endblock %}

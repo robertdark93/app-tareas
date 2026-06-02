@@ -22,6 +22,7 @@
                 <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--yellow);font-size:0.82rem">
                     <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
                     <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
+                        {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                         <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>
                         {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
                     </div>
