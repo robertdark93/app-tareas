@@ -84,4 +84,7 @@ urlpatterns = [
     # Task Lock
     path('tasks/<int:pk>/lock/', views.task_lock, name='task_lock'),
     path('tasks/<int:pk>/unlock/', views.task_unlock, name='task_unlock'),
+
+    # Task quick status change
+    path('tasks/<int:pk>/change-status/', views.task_change_status, name='task_change_status'),
 ]

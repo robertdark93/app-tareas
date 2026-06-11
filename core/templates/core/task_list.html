@@ -75,7 +75,11 @@
             <div class="task-info">
                 <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
                 {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
-                <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
+                <select class="status-select" data-pk="{{ t.id }}">
+                    {% for val, label in t.ESTADOS %}
+                    <option value="{{ val }}" {% if t.estado == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                 <small>👤 {{ t.usuario.username }}{% if t.creado_por %} · creada por {{ t.creado_por.username }}{% endif %}</small>
                 {% if t.fecha_vencimiento %}
@@ -117,9 +121,44 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+.status-select {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    max-width: 110px;
+}
+.status-select option { background: var(--bg-card); color: var(--text-primary); }
+</style>
 <script>
 document.getElementById('select-all')?.addEventListener('change', function() {
     document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = this.checked);
+});
+
+document.querySelectorAll('.status-select').forEach(sel => {
+    sel.addEventListener('change', function() {
+        const pk = this.dataset.pk;
+        const estado = this.value;
+        fetch('/tasks/' + pk + '/change-status/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'estado=' + encodeURIComponent(estado),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                this.closest('.task-item').className = 'task-item status-' + d.estado;
+            }
+        })
+        .catch(() => {});
+    });
 });
 </script>
 {% endblock %}

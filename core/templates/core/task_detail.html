@@ -20,15 +20,22 @@
     <div class="detail-card">
         <div class="detail-row">
             <span class="detail-label">Asignado a</span>
-            <span>{{ tarea.usuario.get_full_name|default:tarea.usuario.username }}</span>
+            <span>{% if tarea.usuario %}{{ tarea.usuario.get_full_name|default:tarea.usuario.username }}{% endif %}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Creada por</span>
-            <span>{{ tarea.creado_por.get_full_name|default:tarea.creado_por.username|default:"-" }}</span>
+            <span>{% if tarea.creado_por %}{{ tarea.creado_por.get_full_name|default:tarea.creado_por.username }}{% else %}-{% endif %}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Estado</span>
-            <span class="badge {{ tarea.estado }}">{{ tarea.get_estado_display }}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+                <span class="badge {{ tarea.estado }} status-badge">{{ tarea.get_estado_display }}</span>
+                <select class="status-select-detail" data-pk="{{ tarea.id }}">
+                    {% for val, label in tarea.ESTADOS %}
+                    <option value="{{ val }}" {% if tarea.estado == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
         <div class="detail-row">
             <span class="detail-label">Prioridad</span>
@@ -140,7 +147,7 @@
                 {% for log in logs %}
                 <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;display:flex;gap:10px;align-items:flex-start">
                     <span style="color:var(--text-muted);white-space:nowrap;font-size:0.75rem;min-width:70px">{{ log.creado|date:"H:i" }}</span>
-                    <span style="color:var(--text-secondary);font-size:0.75rem;min-width:70px">{{ log.usuario.username }}</span>
+                    <span style="color:var(--text-secondary);font-size:0.75rem;min-width:70px">{% if log.usuario %}{{ log.usuario.username }}{% endif %}</span>
                     <div style="flex:1">
                         <span class="badge" style="font-size:0.6rem;background:rgba(88,166,255,0.1);color:var(--accent)">{{ log.get_accion_display }}</span>
                         {% if log.detalle and log.detalle != 'Editada' %}
@@ -176,28 +183,48 @@ document.addEventListener('DOMContentLoaded', function() {
     // ── Share button ──
     const shareBtn = document.getElementById('shareBtn');
     if (shareBtn) {
-        fetch('{% url "generate_share_token" tarea.id %}', { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+        shareBtn.addEventListener('click', function() {
+            const pk = this.dataset.pk;
+            fetch('/tasks/' + pk + '/generate-share-token/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            })
             .then(r => r.json())
             .then(d => {
                 if (d.token) {
                     const url = window.location.origin + '/shared/' + d.token + '/';
-                    shareBtn.dataset.url = url;
+                    fallbackCopy(url);
                 }
             })
             .catch(() => {});
-
-        shareBtn.addEventListener('click', function() {
-            const url = this.dataset.url;
-            if (url) {
-                navigator.clipboard.writeText(url).then(() => {
-                    const orig = this.textContent;
-                    this.textContent = '✅';
-                    setTimeout(() => { this.textContent = orig; }, 2000);
-                }).catch(() => {
-                    prompt('Copiar enlace:', url);
-                });
-            }
         });
+
+        function fallbackCopy(url) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showCopied();
+                }).catch(() => {
+                    promptCopy(url);
+                });
+            } else {
+                promptCopy(url);
+            }
+        }
+        function promptCopy(url) {
+            const input = document.createElement('input');
+            input.value = url;
+            input.style.position = 'fixed'; input.style.opacity = '0';
+            document.body.appendChild(input);
+            input.select();
+            try { document.execCommand('copy'); showCopied(); }
+            catch (e) { prompt('Copiar enlace:', url); }
+            document.body.removeChild(input);
+        }
+        function showCopied() {
+            const orig = shareBtn.textContent;
+            shareBtn.textContent = '✅';
+            setTimeout(() => { shareBtn.textContent = orig; }, 2000);
+        }
     }
 
     // ── Subtask drag & drop reorder ──
@@ -275,6 +302,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── Task Lock on edit page load ──
     // Lock is acquired when entering edit mode (handled separately in task_form.html)
+
+    // ── Inline status change ──
+    const statusSelect = document.querySelector('.status-select-detail');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function() {
+            const pk = this.dataset.pk;
+            const estado = this.value;
+            fetch('/tasks/' + pk + '/change-status/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'estado=' + encodeURIComponent(estado),
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    document.querySelector('.status-badge').textContent = d.display;
+                    document.querySelector('.status-badge').className = 'badge status-badge ' + d.estado;
+                }
+            })
+            .catch(() => {});
+        });
+    }
 });
 </script>
+
+<style>
+.status-select-detail {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.status-select-detail option { background: var(--bg-card); color: var(--text-primary); }
+</style>
 {% endblock %}

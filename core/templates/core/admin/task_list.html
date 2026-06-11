@@ -55,8 +55,8 @@
                     <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo|truncatechars:40 }}</a>
                         {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario and t.usuario != user %}<span class="ownership-badge depto">Depto</span>{% endif %}
                     </td>
-                    <td>{{ t.usuario.username }}</td>
-                    <td>{{ t.creado_por.username|default:"-" }}</td>
+                    <td>{% if t.usuario %}{{ t.usuario.username }}{% endif %}</td>
+                    <td>{% if t.creado_por %}{{ t.creado_por.username }}{% else %}-{% endif %}</td>
                     <td>{{ t.departamento|default:"-" }}</td>
                     <td><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
                     <td><span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span></td>

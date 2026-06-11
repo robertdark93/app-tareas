@@ -1233,6 +1233,37 @@ def task_unlock(request, pk):
 
 
 @login_required
+@require_POST
+def task_change_status(request, pk):
+    tarea = get_object_or_404(Task, pk=pk)
+    if tarea not in tareas_visibles(request.user):
+        return JsonResponse({'error': 'No'}, status=403)
+    estado = request.POST.get('estado')
+    if estado not in dict(Task.ESTADOS):
+        return JsonResponse({'error': 'Estado inválido'}, status=400)
+    tarea.estado = estado
+    if estado == 'terminada':
+        tarea.fecha_completada = date.today()
+        Notification.objects.filter(usuario=request.user, tarea=tarea).delete()
+        if tarea.recurrente:
+            d = {'diaria': timedelta(days=1), 'semanal': timedelta(weeks=1), 'mensual': timedelta(days=30)}.get(tarea.frecuencia)
+            if d:
+                Task.objects.create(usuario=tarea.usuario, titulo=tarea.titulo,
+                    comentarios=tarea.comentarios, prioridad=tarea.prioridad,
+                    recurrente=tarea.recurrente, frecuencia=tarea.frecuencia,
+                    horas_estimadas=tarea.horas_estimadas, creado_por=tarea.creado_por,
+                    fecha_vencimiento=tarea.fecha_vencimiento + d if tarea.fecha_vencimiento else None,
+                    recordatorio=tarea.recordatorio + d if tarea.recordatorio else None)
+    tarea.save(update_fields=['estado', 'fecha_completada'])
+    crear_log(tarea, request.user, 'estado', f'Estado cambiado a {tarea.get_estado_display()}')
+    # Notificar observadores
+    for watcher in TaskWatcher.objects.filter(tarea=tarea).exclude(usuario=request.user):
+        crear_notificacion(watcher.usuario, tarea,
+            f'Estado de "{tarea.titulo}" cambiado a {tarea.get_estado_display()} por {request.user.username}')
+    return JsonResponse({'ok': True, 'estado': estado, 'display': tarea.get_estado_display()})
+
+
+@login_required
 def profile(request):
     u = request.user
     p, _ = Profile.objects.get_or_create(usuario=u)

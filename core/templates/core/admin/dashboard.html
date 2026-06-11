@@ -100,7 +100,7 @@
             <tbody>
                 {% for log in admin_logs %}
                 <tr>
-                    <td>{{ log.usuario.username }}</td>
+                    <td>{% if log.usuario %}{{ log.usuario.username }}{% endif %}</td>
                     <td><span class="badge">{{ log.get_accion_display }}</span></td>
                     <td style="font-size:0.82rem;color:var(--text-secondary)">{{ log.detalle|truncatechars:60 }}</td>
                     <td>{{ log.creado|date:"d/m/Y H:i" }}</td>

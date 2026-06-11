@@ -57,7 +57,11 @@
         {% endfor %}
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Guardar</button>
+            {% if object %}
             <a href="{% url 'task_detail' object.id %}" class="btn" id="cancelEditBtn">Cancelar</a>
+            {% else %}
+            <a href="{% url 'task_list' %}" class="btn">Cancelar</a>
+            {% endif %}
         </div>
     </form>
 </div>
