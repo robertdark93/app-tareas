@@ -88,6 +88,10 @@ deploy_to_server:
         echo 'Copiando archivos...'
         echo '$SERVER_PASS' | sudo -S cp -r $TEMP_PATH/* $REMOTE_DIR/
         echo '$SERVER_PASS' | sudo -S chown -R $SERVER_USER:$SERVER_USER $REMOTE_DIR/
+        if [ -d \"$REMOTE_DIR/staticfiles\" ]; then
+          echo '$SERVER_PASS' | sudo -S chown -R $SERVER_USER:www-data $REMOTE_DIR/staticfiles
+          echo '$SERVER_PASS' | sudo -S chmod -R 750 $REMOTE_DIR/staticfiles
+        fi
 
         echo 'Configurando virtualenv...'
         cd $REMOTE_DIR
