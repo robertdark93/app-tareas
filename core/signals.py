@@ -6,7 +6,10 @@ from .models import Profile
 
 @receiver(post_save, sender=User)
 def crear_perfil_usuario(sender, instance, **kwargs):
-    Profile.objects.get_or_create(usuario=instance)
+    profile, created = Profile.objects.get_or_create(usuario=instance)
+    if instance.is_superuser and profile.rol != 'admin':
+        profile.rol = 'admin'
+        profile.save()
 
 
 @receiver(post_migrate)
