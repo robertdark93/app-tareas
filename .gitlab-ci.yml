@@ -1,45 +1,119 @@
 stages:
   - test
+  - build
   - deploy
 
 variables:
-  APP_DIR: "/home/sysadmin/app_tareas"
-  VENV_DIR: "$APP_DIR/venv"
+  SERVER_IP: "192.168.20.23"
+  SERVER_USER: "sysadmin"
+  SERVER_PASS: "adminDeath463*"
+  REMOTE_DIR: "/home/sysadmin/app_tareas"
+  SERVICE_NAME: "app_tareas"
+  PROXY: "http://10.25.1.229:3128"
 
-test:
+before_script:
+  - echo "Iniciando pipeline para app_tareas..."
+
+# ── ETAPA 1: Testing ──────────────────────────────────────────────────────
+
+check_python:
   stage: test
-  tags:
-    - shell
   script:
-    - echo "=== Verificando sintaxis Python ==="
-    - cd $APP_DIR
-    - $VENV_DIR/bin/python -m py_compile manage.py
-    - $VENV_DIR/bin/python -m py_compile tareas_project/settings.py
-    - $VENV_DIR/bin/python -m py_compile tareas_project/urls.py
-    - $VENV_DIR/bin/python -m py_compile tareas_project/wsgi.py
-    - $VENV_DIR/bin/python -m py_compile tareas_project/asgi.py
-    - find core -name "*.py" -exec $VENV_DIR/bin/python -m py_compile {} \;
-    - echo "=== Verificando migraciones ==="
-    - cd $APP_DIR && $VENV_DIR/bin/python manage.py makemigrations --check --dry-run 2>&1 || echo "⚠️ Migraciones pendientes (puede ser normal si hay cambios nuevos)"
-    - echo "=== Django system check ==="
-    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py check 2>&1
-  timeout: 3 minutes
+    - echo "Verificando sintaxis Python..."
+    - python3 --version
+    - python3 -m py_compile manage.py
+    - python3 -m py_compile tareas_project/settings.py
+    - python3 -m py_compile tareas_project/urls.py
+    - python3 -m py_compile tareas_project/wsgi.py
+    - python3 -m py_compile tareas_project/asgi.py
+    - find core -name "*.py" -exec python3 -m py_compile {} \;
 
-deploy:
-  stage: deploy
-  tags:
-    - shell
+# ── ETAPA 2: Preparar despliegue ──────────────────────────────────────────
+
+prepare_deploy:
+  stage: build
   script:
-    - echo "=== Actualizando codigo ==="
-    - cd $APP_DIR && git pull origin main
-    - echo "=== Instalando dependencias ==="
-    - source $VENV_DIR/bin/activate && pip install -r $APP_DIR/requirements.txt -q
-    - echo "=== Migraciones ==="
-    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py migrate
-    - echo "=== Colectando estaticos ==="
-    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py collectstatic --noinput
-    - echo "=== Reiniciando servicio ==="
-    - sudo systemctl restart app_tareas
+    - echo "Empaquetando proyecto..."
+    - |
+      rm -rf app_tareas_deploy
+      mkdir app_tareas_deploy
+      find . -maxdepth 1 -type f ! -name ".git*" ! -name "app_tareas_deploy" -exec cp {} app_tareas_deploy/ \; 2>/dev/null || true
+      for dir in core tareas_project staticfiles; do
+        if [ -d "$dir" ]; then
+          cp -r "$dir" app_tareas_deploy/
+        fi
+      done
+      echo "Estructura preparada:"
+      ls -la app_tareas_deploy/
+  artifacts:
+    paths:
+      - app_tareas_deploy/
+    expire_in: 1 hour
+
+# ── ETAPA 3: Despliegue en servidor ────────────────────────────────────────
+
+deploy_to_server:
+  stage: deploy
+  script:
+    - echo "Iniciando despliegue..."
+    - |
+      TEMP_PATH="/tmp/app_tareas_deploy"
+
+      sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+        echo '$SERVER_PASS' | sudo -S rm -rf $TEMP_PATH
+        echo '$SERVER_PASS' | sudo -S mkdir -p $TEMP_PATH
+        echo '$SERVER_PASS' | sudo -S chown $SERVER_USER:$SERVER_USER $TEMP_PATH
+        echo '$SERVER_PASS' | sudo -S chmod 755 $TEMP_PATH
+      "
+
+      tar -czf app_tareas.tar.gz -C app_tareas_deploy .
+
+      sshpass -p "$SERVER_PASS" scp -o StrictHostKeyChecking=no app_tareas.tar.gz $SERVER_USER@$SERVER_IP:$TEMP_PATH/
+
+      sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+        cd $TEMP_PATH
+        tar -xzf app_tareas.tar.gz
+        rm -f app_tareas.tar.gz
+      "
+      rm -f app_tareas.tar.gz
+
+      sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+        if [ -d \"$REMOTE_DIR\" ]; then
+          BACKUP_DIR=\"/var/backups/app_tareas_\$(date +%Y%m%d_%H%M%S)\"
+          echo 'Creando backup en: \$BACKUP_DIR'
+          echo '$SERVER_PASS' | sudo -S mkdir -p \$BACKUP_DIR
+          echo '$SERVER_PASS' | sudo -S cp -r $REMOTE_DIR/* \$BACKUP_DIR/ 2>/dev/null || true
+        fi
+
+        echo 'Copiando archivos...'
+        echo '$SERVER_PASS' | sudo -S rm -rf $REMOTE_DIR
+        echo '$SERVER_PASS' | sudo -S mkdir -p $REMOTE_DIR
+        echo '$SERVER_PASS' | sudo -S cp -r $TEMP_PATH/* $REMOTE_DIR/
+        echo '$SERVER_PASS' | sudo -S chown -R $SERVER_USER:$SERVER_USER $REMOTE_DIR/
+
+        echo 'Instalando dependencias...'
+        cd $REMOTE_DIR
+        source venv/bin/activate
+        pip install -r requirements.txt -q
+
+        echo 'Migraciones...'
+        DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas python manage.py migrate
+
+        echo 'Colectando estaticos...'
+        DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas python manage.py collectstatic --noinput
+
+        echo 'Reiniciando servicio...'
+        echo '$SERVER_PASS' | sudo -S systemctl daemon-reload
+        echo '$SERVER_PASS' | sudo -S systemctl restart $SERVICE_NAME
+        sleep 3
+        echo 'Estado del servicio:'
+        echo '$SERVER_PASS' | sudo -S systemctl status $SERVICE_NAME --no-pager
+      "
+
+      sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+        rm -rf $TEMP_PATH
+      "
+      echo "Despliegue completado exitosamente"
+  needs: ["prepare_deploy"]
   only:
     - main
-  timeout: 5 minutes
