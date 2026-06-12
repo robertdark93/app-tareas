@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyc
+*.sqlite3
+*.db
+*.swp
+*.swo
+.DS_Store
+media/
+backups/
+staticfiles/
