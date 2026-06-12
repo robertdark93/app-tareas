@@ -86,14 +86,16 @@ deploy_to_server:
         fi
 
         echo 'Copiando archivos...'
-        echo '$SERVER_PASS' | sudo -S rm -rf $REMOTE_DIR
-        echo '$SERVER_PASS' | sudo -S mkdir -p $REMOTE_DIR
         echo '$SERVER_PASS' | sudo -S cp -r $TEMP_PATH/* $REMOTE_DIR/
         echo '$SERVER_PASS' | sudo -S chown -R $SERVER_USER:$SERVER_USER $REMOTE_DIR/
 
-        echo 'Instalando dependencias...'
+        echo 'Configurando virtualenv...'
         cd $REMOTE_DIR
-        source venv/bin/activate
+        if [ ! -d 'venv' ]; then
+          python3 -m venv venv
+        fi
+        . venv/bin/activate
+        pip install --upgrade pip -q
         pip install -r requirements.txt -q
 
         echo 'Migraciones...'
