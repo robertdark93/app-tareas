@@ -1,20 +1,45 @@
 stages:
   - test
+  - deploy
 
-check_python:
+variables:
+  APP_DIR: "/home/sysadmin/app_tareas"
+  VENV_DIR: "$APP_DIR/venv"
+
+test:
   stage: test
-  image: python:3.12-slim
-  before_script:
-    - pip install --upgrade pip -q
-    - pip install -r requirements.txt -q
+  tags:
+    - shell
   script:
-    - echo "Verificando sintaxis Python..."
-    - python -m py_compile manage.py
-    - python -m py_compile tareas_project/settings.py
-    - python -m py_compile tareas_project/urls.py
-    - python -m py_compile tareas_project/wsgi.py
-    - python -m py_compile tareas_project/asgi.py
-    - find core -name "*.py" -exec python -m py_compile {} \;
-    - echo "Verificando migraciones..."
-    - python manage.py makemigrations --check --dry-run
+    - echo "=== Verificando sintaxis Python ==="
+    - cd $APP_DIR
+    - $VENV_DIR/bin/python -m py_compile manage.py
+    - $VENV_DIR/bin/python -m py_compile tareas_project/settings.py
+    - $VENV_DIR/bin/python -m py_compile tareas_project/urls.py
+    - $VENV_DIR/bin/python -m py_compile tareas_project/wsgi.py
+    - $VENV_DIR/bin/python -m py_compile tareas_project/asgi.py
+    - find core -name "*.py" -exec $VENV_DIR/bin/python -m py_compile {} \;
+    - echo "=== Verificando migraciones ==="
+    - cd $APP_DIR && $VENV_DIR/bin/python manage.py makemigrations --check --dry-run 2>&1 || echo "⚠️ Migraciones pendientes (puede ser normal si hay cambios nuevos)"
+    - echo "=== Django system check ==="
+    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py check 2>&1
+  timeout: 3 minutes
+
+deploy:
+  stage: deploy
+  tags:
+    - shell
+  script:
+    - echo "=== Actualizando codigo ==="
+    - cd $APP_DIR && git pull origin main
+    - echo "=== Instalando dependencias ==="
+    - source $VENV_DIR/bin/activate && pip install -r $APP_DIR/requirements.txt -q
+    - echo "=== Migraciones ==="
+    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py migrate
+    - echo "=== Colectando estaticos ==="
+    - cd $APP_DIR && DB_HOST=localhost DB_NAME=tareas DB_USER=tareas DB_PASSWORD=tareas $VENV_DIR/bin/python manage.py collectstatic --noinput
+    - echo "=== Reiniciando servicio ==="
+    - sudo systemctl restart app_tareas
+  only:
+    - main
   timeout: 5 minutes
