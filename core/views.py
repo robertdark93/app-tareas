@@ -1268,11 +1268,18 @@ def profile(request):
     u = request.user
     p, _ = Profile.objects.get_or_create(usuario=u)
     form = ProfileForm(request.POST or None, request.FILES or None, instance=u, initial={
+        'username': u.username,
         'first_name': u.first_name,
         'last_name': u.last_name,
         'email': u.email,
     })
     if request.method == 'POST' and form.is_valid():
+        nuevo_username = form.cleaned_data['username']
+        if nuevo_username != u.username:
+            if User.objects.filter(username=nuevo_username).exclude(pk=u.pk).exists():
+                messages.error(request, 'El nombre de usuario ya está en uso.')
+                return render(request, 'core/profile.html', {'form': form, 'profile': p})
+            u.username = nuevo_username
         u.first_name = form.cleaned_data['first_name']
         u.last_name = form.cleaned_data['last_name']
         u.email = form.cleaned_data['email']
