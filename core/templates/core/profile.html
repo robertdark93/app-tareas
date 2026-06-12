@@ -12,6 +12,14 @@
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <ul>{% for field, errors in form.errors.items %}{% for error in errors %}
+                <li>{{ error }}</li>
+            {% endfor %}{% endfor %}</ul>
+        </div>
+        {% endif %}
+
         <div class="avatar-section" style="text-align:center;margin-bottom:1.5rem">
             {% if profile.avatar %}
                 <img src="{{ profile.avatar.url }}" alt="avatar" class="profile-avatar-img">
