@@ -12,8 +12,9 @@
     <nav class="navbar">
         <div class="container nav-container">
             <a href="{% url 'index' %}" class="nav-brand">📋 Gestor de Tareas</a>
+            <button class="hamburger" id="hamburgerBtn" aria-label="Menú">☰</button>
             {% if user.is_authenticated %}
-            <div class="nav-links">
+            <div class="nav-links" id="navLinks">
                 <a href="{% url 'index' %}">Inicio</a>
                 <a href="{% url 'task_list' %}">Tareas</a>
                 <a href="{% url 'kanban' %}">Kanban</a>
@@ -32,27 +33,43 @@
                 {% elif user_es_moderador %}
                 <a href="{% url 'admin_tasks' %}" class="nav-admin">Admin</a>
                 {% endif %}
-                <button class="theme-toggle" id="themeToggle" title="Cambiar tema">🌓</button>
-                <a href="{% url 'profile' %}" class="user-name">
-                    {% if user.profile.avatar %}
-                    <img src="{{ user.profile.avatar.url }}" class="nav-avatar" alt="avatar">
-                    {% elif user.profile.avatar_icon %}
-                    <span class="nav-avatar-emoji" title="Icono">{{ user.profile.avatar_icon }}</span>
-                    {% else %}
-                    <span class="nav-avatar-emoji">{{ user.username|first|upper }}</span>
-                    {% endif %}
-                    {{ user.username }}
-                </a>
-                <form method="post" action="{% url 'logout' %}" class="logout-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-logout">Cerrar sesión</button>
-                </form>
+                <button class="theme-toggle" id="themeToggle">🌓</button>
+                <div class="profile-dropdown">
+                    <a href="#" class="profile-trigger" id="profileTrigger">
+                        {% if user.profile.avatar %}
+                        <img src="{{ user.profile.avatar.url }}" class="nav-avatar" alt="avatar">
+                        {% elif user.profile.avatar_icon %}
+                        <span class="nav-avatar-emoji" title="Icono">{{ user.profile.avatar_icon }}</span>
+                        {% else %}
+                        <span class="nav-avatar-emoji">{{ user.username|first|upper }}</span>
+                        {% endif %}
+                        {{ user.username }} ▾
+                    </a>
+                    <div class="profile-menu" id="profileMenu">
+                        <a href="{% url 'profile' %}">👤 Perfil</a>
+                        <a href="{% url 'notification_list' %}">🔔 Notificaciones</a>
+                        <div class="menu-divider"></div>
+                        <a href="{% url 'help' %}">❓ Ayuda</a>
+                        <a href="{% url 'about' %}">ℹ️ Acerca de</a>
+                        <div class="menu-divider"></div>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="menu-danger">🚪 Cerrar sesión</button>
+                        </form>
+                    </div>
+                </div>
             </div>
             {% endif %}
         </div>
     </nav>
 
     <div class="container">
+        {% block back_button %}
+        <div class="back-bar">
+            <a href="#" onclick="event.preventDefault();window.history.back()" class="back-link">← Atrás</a>
+        </div>
+        {% endblock %}
+
         {% if messages %}
         <div class="messages">
             {% for message in messages %}
@@ -66,6 +83,37 @@
     {% block extra_scripts %}{% endblock %}
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // ── Hamburger toggle ──
+        const hamburger = document.getElementById('hamburgerBtn');
+        const navLinks = document.getElementById('navLinks');
+        if (hamburger && navLinks) {
+            hamburger.addEventListener('click', function() {
+                navLinks.classList.toggle('open');
+                hamburger.textContent = navLinks.classList.contains('open') ? '✕' : '☰';
+            });
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.nav-container')) {
+                    navLinks.classList.remove('open');
+                    hamburger.textContent = '☰';
+                }
+            });
+        }
+
+        // ── Profile dropdown ──
+        const profileTrigger = document.getElementById('profileTrigger');
+        const profileMenu = document.getElementById('profileMenu');
+        if (profileTrigger && profileMenu) {
+            profileTrigger.addEventListener('click', function(e) {
+                e.preventDefault();
+                profileMenu.classList.toggle('open');
+            });
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.profile-dropdown')) {
+                    profileMenu.classList.remove('open');
+                }
+            });
+        }
+
         // ── Theme toggle ──
         const themeToggle = document.getElementById('themeToggle');
         const saved = localStorage.getItem('theme');

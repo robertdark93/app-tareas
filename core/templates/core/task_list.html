@@ -86,7 +86,7 @@
                 <small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>
                 {% endif %}
                 {% if t.horas_tomadas %}
-                <small>⏱ {{ t.horas_tomadas }}h</small>
+                <small>⏱ {{ t.horas_tomadas|hours_display }}</small>
                 {% endif %}
                 {% if t.recurrente %}
                 <small class="recurring-badge">🔄 {{ t.get_frecuencia_display }}</small>

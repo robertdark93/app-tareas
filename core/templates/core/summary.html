@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load core_extras %}
 {% block title %}Resumen Mensual{% endblock %}
 {% block extra_head %}
 <script src="{% static 'core/vendor/chart.umd.min.js' %}"></script>
@@ -58,7 +59,7 @@
 
     <div class="stats-row">
         <div class="stat-card highlight">
-            <span class="stat-number">{{ total_horas|floatformat:2 }}</span>
+            <span class="stat-number">{{ total_horas|hours_display }}</span>
             <span class="stat-label">Horas Totales</span>
         </div>
         <div class="stat-card highlight">
@@ -68,6 +69,66 @@
     </div>
 
     {% if total_tareas > 0 %}
+    <div class="section">
+        <h3>✅ Completadas ({{ conteo_estados.terminada }})</h3>
+        {% if tareas_terminadas_list %}
+        <ul class="task-list">
+            {% for t in tareas_terminadas_list|slice:":10" %}
+            <li class="task-item status-terminada">
+                <div class="task-info">
+                    <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    {% if t.horas_tomadas %}<small>⏱ {{ t.horas_tomadas|hours_display }}</small>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if tareas_terminadas_list|length > 10 %}<p class="empty">... y {{ tareas_terminadas_list|length|add:"-10" }} más</p>{% endif %}
+        {% else %}
+        <p class="empty">No hay tareas completadas este mes.</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h3>⏳ Pendientes ({{ conteo_estados.pendiente }})</h3>
+        {% if tareas_pendientes_list %}
+        <ul class="task-list">
+            {% for t in tareas_pendientes_list|slice:":10" %}
+            <li class="task-item status-pendiente">
+                <div class="task-info">
+                    <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    {% if t.prioridad == 'urgente' or t.prioridad == 'alta' %}
+                    <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                    {% endif %}
+                    {% if t.fecha_vencimiento %}<small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if tareas_pendientes_list|length > 10 %}<p class="empty">... y {{ tareas_pendientes_list|length|add:"-10" }} más</p>{% endif %}
+        {% else %}
+        <p class="empty">No hay tareas pendientes este mes.</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h3>🔄 En Proceso ({{ conteo_estados.proceso }})</h3>
+        {% if tareas_proceso_list %}
+        <ul class="task-list">
+            {% for t in tareas_proceso_list|slice:":10" %}
+            <li class="task-item status-proceso">
+                <div class="task-info">
+                    <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    {% if t.fecha_vencimiento %}<small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if tareas_proceso_list|length > 10 %}<p class="empty">... y {{ tareas_proceso_list|length|add:"-10" }} más</p>{% endif %}
+        {% else %}
+        <p class="empty">No hay tareas en proceso este mes.</p>
+        {% endif %}
+    </div>
+
     <div class="charts-row">
         <div class="chart-card">
             <h3>Prioridad</h3>
@@ -94,7 +155,7 @@
                 {% for t in top_horas %}
                 <tr>
                     <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo }}</a></td>
-                    <td>{{ t.horas_tomadas }}h</td>
+                    <td>{{ t.horas_tomadas|hours_display }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -119,7 +180,7 @@
                 <tr>
                     <td><a href="{% url 'task_detail' t.id %}">{{ t.titulo }}</a></td>
                     <td><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
-                    <td>{{ t.horas_tomadas }}h</td>
+                    <td>{{ t.horas_tomadas|hours_display }}</td>
                     <td>{{ t.fecha_completada|date:"d/m/Y" }}</td>
                 </tr>
                 {% endfor %}

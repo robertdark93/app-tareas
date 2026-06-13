@@ -103,9 +103,10 @@ else
     exit 1
 fi
 echo "✅ Usando puerto $APP_PORT"
+DETECTED_PORT=$APP_PORT
 
 set -a; source .env; set +a
-export APP_PORT=${APP_PORT:-5000}
+export APP_PORT=${DETECTED_PORT:-5000}
 
 echo "🐳 Construyendo y levantando contenedores..."
 sudox env APP_PORT="$APP_PORT" HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" \

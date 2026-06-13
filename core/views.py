@@ -714,6 +714,8 @@ def summary(request):
     qs = tareas_visibles(request.user)
     tareas_mes = qs.filter(fecha_creacion__year=ano, fecha_creacion__month=mes)
     completadas = tareas_mes.filter(estado='terminada')
+    pendientes = tareas_mes.filter(estado='pendiente')
+    proceso = tareas_mes.filter(estado='proceso')
     total_horas = completadas.aggregate(total=Sum('horas_tomadas'))['total'] or 0
     prom = completadas.aggregate(p=Avg('horas_tomadas'))['p'] or 0
     meses = [(i, ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
@@ -742,9 +744,12 @@ def summary(request):
         'ano': ano, 'mes': mes, 'nombre_mes': dict(meses)[mes],
         'total_tareas': tareas_mes.count(),
         'tareas_completadas': completadas,
+        'tareas_pendientes_list': pendientes,
+        'tareas_proceso_list': proceso,
+        'tareas_terminadas_list': completadas,
         'conteo_estados': {
-            'pendiente': tareas_mes.filter(estado='pendiente').count(),
-            'proceso': tareas_mes.filter(estado='proceso').count(),
+            'pendiente': pendientes.count(),
+            'proceso': proceso.count(),
             'terminada': completadas.count(),
         },
         'total_horas': total_horas, 'promedio_horas': prom,
@@ -929,6 +934,10 @@ def export_xlsx(request):
 @login_required
 @admin_required
 def admin_dashboard(request):
+    from django.db.models import Count, Q
+    from datetime import datetime, timedelta
+    from calendar import month_name
+
     usuarios = User.objects.annotate(
         total=Count('task'),
         term=Count('task', filter=Q(task__estado='terminada')),
@@ -946,6 +955,54 @@ def admin_dashboard(request):
     depto_labels = [d.nombre for d in deptos]
     depto_data = [d.total for d in deptos]
 
+    # Monthly trend: last 12 months
+    now = datetime.now()
+    monthly_labels = []
+    monthly_created = []
+    monthly_completed = []
+    for i in range(11, -1, -1):
+        m = now.month - i
+        y = now.year
+        while m < 1:
+            m += 12
+            y -= 1
+        monthly_labels.append(f'{month_name[m][:3]}-{str(y)[2:]}')
+        monthly_created.append(qs.filter(fecha_creacion__year=y, fecha_creacion__month=m).count())
+        monthly_completed.append(qs.filter(
+            estado='terminada',
+            fecha_creacion__year=y,
+            fecha_creacion__month=m,
+        ).count())
+
+    # Radar per user (top 5 users by total tasks)
+    top5 = User.objects.annotate(total=Count('task')).filter(total__gt=0).order_by('-total')[:5]
+    radar_labels = ['Pendientes', 'En Proceso', 'Terminadas']
+    radar_datasets = []
+    radar_colors = ['#58a6ff', '#3fb950', '#d29922', '#bc8cff', '#f85149']
+    for idx, u in enumerate(top5):
+        tareas_user = qs.filter(usuario=u)
+        radar_datasets.append({
+            'label': u.username,
+            'data': [
+                tareas_user.filter(estado='pendiente').count(),
+                tareas_user.filter(estado='proceso').count(),
+                tareas_user.filter(estado='terminada').count(),
+            ],
+            'color': radar_colors[idx % len(radar_colors)],
+        })
+
+    # Stacked bar: state per user (top 10)
+    top10 = User.objects.annotate(total=Count('task')).filter(total__gt=0).order_by('-total')[:10]
+    stacked_labels = [u.username for u in top10]
+    stacked_pendientes = []
+    stacked_proceso = []
+    stacked_terminadas = []
+    for u in top10:
+        tareas_user = qs.filter(usuario=u)
+        stacked_pendientes.append(tareas_user.filter(estado='pendiente').count())
+        stacked_proceso.append(tareas_user.filter(estado='proceso').count())
+        stacked_terminadas.append(tareas_user.filter(estado='terminada').count())
+
     return render(request, 'core/admin/dashboard.html', {
         'total_usuarios': User.objects.count(),
         'total_tareas': qs.count(),
@@ -958,6 +1015,15 @@ def admin_dashboard(request):
         'chart_tareas_por_usuario_data': task_count_by_user,
         'chart_depto_labels': depto_labels,
         'chart_depto_data': depto_data,
+        'monthly_labels': monthly_labels,
+        'monthly_created': monthly_created,
+        'monthly_completed': monthly_completed,
+        'radar_labels': radar_labels,
+        'radar_datasets': radar_datasets,
+        'stacked_labels': stacked_labels,
+        'stacked_pendientes': stacked_pendientes,
+        'stacked_proceso': stacked_proceso,
+        'stacked_terminadas': stacked_terminadas,
         'login_logs': LoginLog.objects.all()[:10],
         'admin_logs': AdminLog.objects.all()[:15],
     })
@@ -1311,3 +1377,136 @@ def profile(request):
             messages.success(request, 'Contraseña cambiada.')
         return redirect('profile')
     return render(request, 'core/profile.html', {'form': form, 'profile': p})
+
+
+# ─── Admin Report: per-user + per-month ─────────────────────
+
+@login_required
+@admin_required
+def admin_report(request):
+    ano = int(request.GET.get('ano', datetime.now().year))
+    mes = int(request.GET.get('mes', datetime.now().month))
+    usuarios = User.objects.all().order_by('username')
+    meses = [(i, ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                  'Agosto','Septiembre','Octubre','Noviembre','Diciembre'][i-1]) for i in range(1,13)]
+
+    filas = []
+    total_completadas = 0
+    total_pendientes = 0
+    total_horas = 0
+    for u in usuarios:
+        tareas = Task.objects.filter(usuario=u, fecha_creacion__year=ano, fecha_creacion__month=mes)
+        completadas = tareas.filter(estado='terminada')
+        pendientes = tareas.filter(estado='pendiente')
+        proceso = tareas.filter(estado='proceso')
+        count_completadas = completadas.count()
+        count_pendientes = pendientes.count()
+        count_proceso = proceso.count()
+        horas = completadas.aggregate(s=Sum('horas_tomadas'))['s'] or 0
+        prom = (horas / count_completadas) if count_completadas else 0
+        total_count = tareas.count()
+        pct = round((count_completadas / total_count * 100) if total_count else 0)
+        filas.append({
+            'usuario': u,
+            'total': total_count,
+            'completadas': count_completadas,
+            'pendientes': count_pendientes,
+            'proceso': count_proceso,
+            'horas': horas,
+            'promedio': round(prom, 2),
+            'pct_completadas': pct,
+            'tareas_list': tareas.order_by('-fecha_creacion'),
+        })
+        total_completadas += count_completadas
+        total_pendientes += count_pendientes
+        total_horas += horas
+
+    return render(request, 'core/admin/report.html', {
+        'ano': ano, 'mes': mes, 'nombre_mes': dict(meses)[mes],
+        'filas': filas,
+        'total_completadas': total_completadas,
+        'total_pendientes': total_pendientes,
+        'total_horas': round(total_horas, 2),
+        'meses': meses, 'anos': list(range(2024, datetime.now().year + 2)),
+    })
+
+
+@login_required
+@admin_required
+def admin_report_export_csv(request):
+    ano = int(request.GET.get('ano', datetime.now().year))
+    mes = int(request.GET.get('mes', datetime.now().month))
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(['Usuario', 'Total Tareas', 'Completadas', 'Pendientes', 'En Proceso', 'Horas', 'Promedio (h)'])
+    for u in User.objects.all().order_by('username'):
+        tareas = Task.objects.filter(usuario=u, fecha_creacion__year=ano, fecha_creacion__month=mes)
+        completadas = tareas.filter(estado='terminada')
+        count_completadas = completadas.count()
+        horas = completadas.aggregate(s=Sum('horas_tomadas'))['s'] or 0
+        prom = round(horas / count_completadas, 2) if count_completadas else 0
+        w.writerow([u.username, tareas.count(), count_completadas,
+                     tareas.filter(estado='pendiente').count(),
+                     tareas.filter(estado='proceso').count(),
+                     round(horas, 2), prom])
+    resp = HttpResponse(buf.getvalue(), content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="reporte_admin_{ano}_{mes}.csv"'
+    return resp
+
+
+@login_required
+@admin_required
+def admin_report_export_pdf(request):
+    if not HAS_REPORTLAB:
+        messages.error(request, 'ReportLab no instalado.')
+        return redirect('admin_report')
+    ano = int(request.GET.get('ano', datetime.now().year))
+    mes = int(request.GET.get('mes', datetime.now().month))
+    meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+             'Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    styles = getSampleStyleSheet()
+    els = [Paragraph(f'Reporte Admin - {meses[mes-1]} {ano}', styles['Title']), Spacer(1, 12)]
+
+    data = [['Usuario', 'Total', 'Completadas', 'Pendientes', 'En Proceso', 'Horas', 'Prom. (h)']]
+    total_c = total_p = total_h = 0
+    for u in User.objects.all().order_by('username'):
+        tareas = Task.objects.filter(usuario=u, fecha_creacion__year=ano, fecha_creacion__month=mes)
+        completadas = tareas.filter(estado='terminada')
+        cc = completadas.count()
+        cp = tareas.filter(estado='pendiente').count()
+        cpr = tareas.filter(estado='proceso').count()
+        horas = completadas.aggregate(s=Sum('horas_tomadas'))['s'] or 0
+        prom = round(horas / cc, 2) if cc else 0
+        data.append([u.username, str(tareas.count()), str(cc), str(cp), str(cpr), f'{horas:.1f}', str(prom)])
+        total_c += cc
+        total_p += cp
+        total_h += horas
+    data.append(['TOTAL', '', str(total_c), str(total_p), '', f'{total_h:.1f}', ''])
+
+    tbl = Table(data, colWidths=[1.2*inch, 0.8*inch, 1*inch, 0.9*inch, 0.9*inch, 0.8*inch, 0.8*inch])
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a73e8')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [rl_colors.white, rl_colors.HexColor('#f5f5f5')]),
+        ('BACKGROUND', (0, -1), (-1, -1), rl_colors.HexColor('#e8e8e8')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    els.append(tbl)
+    doc.build(els)
+    resp = HttpResponse(buf.getvalue(), content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="reporte_admin_{ano}_{mes}.pdf"'
+    return resp
+
+
+@login_required
+def help_page(request):
+    return render(request, 'core/help.html')
+
+
+@login_required
+def about_page(request):
+    return render(request, 'core/about.html')

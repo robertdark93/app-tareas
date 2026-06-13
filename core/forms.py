@@ -25,7 +25,7 @@ class TaskCreateForm(forms.ModelForm):
                   'horas_estimadas', 'fecha_vencimiento', 'recordatorio',
                   'recurrente', 'frecuencia', 'parent', 'usuario']
         widgets = {
-            'fecha_vencimiento': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
             'recordatorio': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
             'comentarios': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
@@ -70,7 +70,7 @@ class TaskUpdateForm(forms.ModelForm):
                   'horas_estimadas', 'fecha_vencimiento', 'horas_tomadas', 'recordatorio',
                   'recurrente', 'frecuencia', 'parent', 'usuario']
         widgets = {
-            'fecha_vencimiento': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
             'recordatorio': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
             'comentarios': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),

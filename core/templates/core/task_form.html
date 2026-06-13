@@ -8,7 +8,7 @@
         🔒 Bloqueo adquirido automáticamente al entrar — se libera al guardar o cancelar.
     </div>
     {% endif %}
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" id="taskForm">
         {% csrf_token %}
         {% if es_editar %}
         <div class="form-group">
@@ -45,6 +45,41 @@
             <div class="field-error">{{ field.errors }}</div>
             {% endif %}
         </div>
+        {% elif field.name == 'horas_tomadas' or field.name == 'horas_estimadas' %}
+        <div class="form-group">
+            <label for="id_{{ field.name }}_h">{{ field.label }}</label>
+            <div class="inline-form" style="display:flex;gap:6px;align-items:center">
+                <input type="number" id="id_{{ field.name }}_h" min="0" max="999" class="form-control" style="width:80px" placeholder="hh" value="0">
+                <span style="color:var(--text-muted)">h</span>
+                <input type="number" id="id_{{ field.name }}_m" min="0" max="59" class="form-control" style="width:80px" placeholder="mm" value="0">
+                <span style="color:var(--text-muted)">m</span>
+                {{ field }}
+            </div>
+            {% if field.errors %}
+            <div class="field-error">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+        <script>
+        (function() {
+            const fn = '{{ field.name }}';
+            const field = document.getElementById('id_' + fn);
+            const hInp = document.getElementById('id_' + fn + '_h');
+            const mInp = document.getElementById('id_' + fn + '_m');
+            field.type = 'hidden';
+            if (field.value) {
+                const v = parseFloat(field.value) || 0;
+                hInp.value = Math.floor(v);
+                mInp.value = Math.round((v - Math.floor(v)) * 60);
+            }
+            hInp.addEventListener('input', sync);
+            mInp.addEventListener('input', sync);
+            function sync() {
+                const h = parseInt(hInp.value) || 0;
+                const m = parseInt(mInp.value) || 0;
+                field.value = h + (m / 60);
+            }
+        })();
+        </script>
         {% else %}
         <div class="form-group">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -56,7 +91,7 @@
         {% endif %}
         {% endfor %}
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
+            <button type="submit" class="btn btn-primary" id="submitBtn">Guardar</button>
             {% if object %}
             <a href="{% url 'task_detail' object.id %}" class="btn" id="cancelEditBtn">Cancelar</a>
             {% else %}

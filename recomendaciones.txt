@@ -1,0 +1,45 @@
+═══════════════════════════════════════════════════════════
+  LISTA DE MEJORAS — APP_TAREAS
+═══════════════════════════════════════════════════════════
+
+[✔] Reporte admin: usuario + mes
+    - Vista admin para seleccionar mes/año
+    - Por cada usuario: tareas totales, completadas, pendientes,
+      horas tomadas, tiempo promedio
+    - Exportar a PDF y CSV
+
+[✔] Menú hamburguesa responsive
+    - Botón ☰ en navbar que togglea nav-links
+    - Cerrar al hacer click fuera
+
+[✔] Banner / Hero en index
+    - Sección de bienvenida con glassmorphism
+    - Gradiente sutil + botones de acción
+
+[✔] Animaciones sutiles en tarjetas
+    - Hover: translateY(-2px) + sombra
+    - Badges con pulso en pendientes
+    - Fade-in al cargar
+
+[✔] Gráficos adicionales
+    - Líneas de tendencia mensual en admin
+    - Radar por usuario
+    - Barras apiladas en resumen admin
+
+[✔] Tarjetas de stats con gradiente e iconos
+    - Fondo gradiente sutil
+    - Barra superior de color
+    - Hover con transform + sombra
+
+[✔] Efectos glassmorphism más marcados
+    - backdrop-filter: blur(12px)
+    - Sombras más pronunciadas
+
+[✔] Tooltips personalizados
+    - CSS nativo con ::after
+    - Posicionado sobre el elemento
+    - Dark-theme consistente
+
+[✔] Dropdown de perfil en navbar
+    - Menú desplegable al hacer click en usuario
+    - Opciones: Perfil, Notificaciones, Cerrar sesión

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ tarea.titulo }} — Tarea Compartida</title>
     {% load static %}
+    {% load core_extras %}
     <link rel="stylesheet" href="{% static 'core/style.css' %}">
 </head>
 <body class="login-body">
@@ -44,13 +45,13 @@
             {% if tarea.horas_estimadas %}
             <div class="detail-row">
                 <span class="detail-label">Horas estimadas</span>
-                <div class="detail-text">{{ tarea.horas_estimadas }}h</div>
+                <div class="detail-text">{{ tarea.horas_estimadas|hours_display }}</div>
             </div>
             {% endif %}
             {% if tarea.horas_tomadas %}
             <div class="detail-row">
                 <span class="detail-label">Horas tomadas</span>
-                <div class="detail-text">{{ tarea.horas_tomadas }}h</div>
+                <div class="detail-text">{{ tarea.horas_tomadas|hours_display }}</div>
             </div>
             {% endif %}
             {% if tarea.etiquetas.all %}

@@ -1,0 +1,21 @@
+{% extends 'core/base.html' %}
+{% block title %}Acerca de{% endblock %}
+{% block content %}
+<div class="section" style="max-width:600px;margin:0 auto;text-align:center">
+    <h1>📋 Gestor de Tareas</h1>
+    <p style="color:var(--text-secondary);margin:16px 0;font-size:1.1rem">
+        Aplicación web para la gestión eficiente de tareas, reportes y colaboración en equipo.
+    </p>
+    <div style="margin:32px 0;padding:24px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">
+        <h2 style="margin-bottom:8px">👨‍💻 Desarrollado por</h2>
+        <p style="font-size:1.2rem;font-weight:600;color:var(--accent)">Roberto R Cabrera Herrera</p>
+        <p style="color:var(--text-secondary)">DevOps</p>
+        <p style="color:var(--text-secondary)">Jefe del Departamento de Servicios de la ETI</p>
+    </div>
+
+    <div style="margin:24px 0;color:var(--text-muted);font-size:0.85rem">
+        <p>Tecnologías: Django 6 · PostgreSQL · Docker · Daphne · Chart.js</p>
+        <p style="margin-top:4px">© {% now "Y" %} Todos los derechos reservados</p>
+    </div>
+</div>
+{% endblock %}

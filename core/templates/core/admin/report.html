@@ -1,0 +1,132 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Reporte por Usuario{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>📊 Reporte por Usuario — {{ nombre_mes }} {{ ano }}</h1>
+        <div class="header-actions">
+            <a href="{% url 'admin_report_export_csv' %}?mes={{ mes }}&ano={{ ano }}" class="btn btn-small">CSV</a>
+            <a href="{% url 'admin_report_export_pdf' %}?mes={{ mes }}&ano={{ ano }}" class="btn btn-small">PDF</a>
+            <a href="{% url 'admin_dashboard' %}" class="btn">← Admin</a>
+        </div>
+    </div>
+
+    <form method="get" class="filter-form">
+        <div class="form-group inline-form">
+            <label for="mes">Mes:</label>
+            <select name="mes" id="mes" class="form-control">
+                {% for num, nombre in meses %}
+                <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+            <label for="ano">Año:</label>
+            <select name="ano" id="ano" class="form-control">
+                {% for a in anos %}
+                <option value="{{ a }}" {% if ano == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Ver</button>
+        </div>
+    </form>
+
+    <div class="stats-row" style="margin-bottom:20px">
+        <div class="stat-card done">
+            <span class="stat-number">{{ total_completadas }}</span>
+            <span class="stat-label">Completadas</span>
+        </div>
+        <div class="stat-card pending">
+            <span class="stat-number">{{ total_pendientes }}</span>
+            <span class="stat-label">Pendientes</span>
+        </div>
+        <div class="stat-card highlight">
+            <span class="stat-number">{{ total_horas|hours_display }}</span>
+            <span class="stat-label">Horas Totales</span>
+        </div>
+    </div>
+
+    <table class="summary-table" id="reportTable">
+        <thead>
+            <tr>
+                <th style="width:30px"></th>
+                <th>Usuario</th>
+                <th>Total</th>
+                <th>Completadas</th>
+                <th>Pendientes</th>
+                <th>En Proceso</th>
+                <th>% Compl.</th>
+                <th>Horas</th>
+                <th>Promedio</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in filas %}
+            <tr class="report-row" data-user="{{ f.usuario.id }}" style="cursor:pointer">
+                <td style="text-align:center;font-size:0.85rem;color:var(--text-muted)" class="toggle-icon">▶</td>
+                <td><strong>{{ f.usuario.username }}</strong></td>
+                <td>{{ f.total }}</td>
+                <td><span class="badge terminada">{{ f.completadas }}</span></td>
+                <td><span class="badge pendiente">{{ f.pendientes }}</span></td>
+                <td><span class="badge proceso">{{ f.proceso }}</span></td>
+                <td>{{ f.pct_completadas }}%</td>
+                <td>{{ f.horas|hours_display }}</td>
+                <td>{{ f.promedio|hours_display }}</td>
+            </tr>
+            <tr class="report-detail" id="detail-{{ f.usuario.id }}" style="display:none">
+                <td colspan="9" style="padding:0">
+                    <div style="padding:12px 16px 16px 46px;background:var(--bg-primary)">
+                        {% if f.tareas_list %}
+                        <table style="width:100%;font-size:0.82rem">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;color:var(--text-muted);padding:4px 8px;border-bottom:1px solid var(--border)">Tarea</th>
+                                    <th style="text-align:left;color:var(--text-muted);padding:4px 8px;border-bottom:1px solid var(--border)">Estado</th>
+                                    <th style="text-align:left;color:var(--text-muted);padding:4px 8px;border-bottom:1px solid var(--border)">Prioridad</th>
+                                    <th style="text-align:left;color:var(--text-muted);padding:4px 8px;border-bottom:1px solid var(--border)">Horas</th>
+                                    <th style="text-align:left;color:var(--text-muted);padding:4px 8px;border-bottom:1px solid var(--border)">Vence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in f.tareas_list %}
+                                <tr>
+                                    <td style="padding:4px 8px;border-bottom:1px solid var(--border)"><a href="{% url 'task_detail' t.id %}">{{ t.titulo }}</a></td>
+                                    <td style="padding:4px 8px;border-bottom:1px solid var(--border)"><span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span></td>
+                                    <td style="padding:4px 8px;border-bottom:1px solid var(--border)"><span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span></td>
+                                    <td style="padding:4px 8px;border-bottom:1px solid var(--border)">{{ t.horas_tomadas|hours_display }}</td>
+                                    <td style="padding:4px 8px;border-bottom:1px solid var(--border)">{{ t.fecha_vencimiento|date:"d/m/Y"|default:"-" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty" style="margin:0">Sin tareas en este período.</p>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="empty">Sin datos para este período.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.report-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+            const userId = this.dataset.user;
+            const detail = document.getElementById('detail-' + userId);
+            const icon = this.querySelector('.toggle-icon');
+            if (detail.style.display === 'none') {
+                detail.style.display = '';
+                icon.textContent = '▼';
+            } else {
+                detail.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

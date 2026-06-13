@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+{% block title %}Ayuda{% endblock %}
+{% block content %}
+<div class="section" style="max-width:800px;margin:0 auto">
+    <h1>❓ Ayuda de la Aplicación</h1>
+    <p style="color:var(--text-secondary);margin-bottom:20px">Guía rápida para el uso del Gestor de Tareas</p>
+
+    <h3>📋 Tareas</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li><strong>Crear tarea:</strong> Usa el botón <em>➕ Nueva Tarea</em> en cualquier página. Completa título, prioridad, asignación y fecha de vencimiento.</li>
+        <li><strong>Editar tarea:</strong> Haz clic en una tarea para ver sus detalles y usa el botón <em>✏️ Editar</em>.</li>
+        <li><strong>Completar tarea:</strong> Desde la vista de detalle, ingresa las horas reales trabajadas y presiona <em>Completar Tarea</em>.</li>
+        <li><strong>Subtareas:</strong> Dentro de una tarea, puedes agregar subtareas para desglosar el trabajo. Reordénalas por arrastre.</li>
+        <li><strong>Cambio rápido de estado:</strong> Usa el menú desplegable de estado tanto en la lista como en el detalle de la tarea.</li>
+    </ul>
+
+    <h3>👥 Colaboración</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li><strong>Asignar tareas:</strong> Al crear o editar una tarea, selecciona el usuario responsable en el campo <em>Asignar a</em>.</li>
+        <li><strong>Vigilar tarea (<em>Watch</em>):</strong> Desde el detalle de la tarea, activa la vigilancia para recibir notificaciones de cambios.</li>
+        <li><strong>Bloquear tarea:</strong> Al editar una tarea, se bloquea automáticamente para evitar ediciones concurrentes.</li>
+        <li><strong>Compartir:</strong> Usa el botón <em>Compartir</em> en el detalle de la tarea para copiar el enlace directo.</li>
+    </ul>
+
+    <h3>🔔 Notificaciones</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li>Las notificaciones se reciben en tiempo real vía WebSocket.</li>
+        <li>El badge rojo en el menú muestra la cantidad de notificaciones no leídas.</li>
+        <li>Puedes marcarlas como leídas individualmente o todas a la vez.</li>
+        <li>Las menciones con <code>@usuario</code> en los comentarios generan notificaciones automáticas.</li>
+    </ul>
+
+    <h3>📊 Reportes</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li><strong>Resumen mensual:</strong> Filtra por mes y año para ver estadísticas, gráficos y lista detallada de tareas.</li>
+        <li><strong>Reporte admin:</strong> Los administradores pueden ver un reporte por usuario y mes, exportable a CSV y PDF.</li>
+        <li><strong>Dashboard admin:</strong> Panel con gráficos de tendencia, radar por usuario y barras apiladas de estados.</li>
+    </ul>
+
+    <h3>🔄 Kanban</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li>Arrastra y suelta las tarjetas entre columnas para cambiar el estado de las tareas.</li>
+        <li>El tablero kanban es personal por usuario.</li>
+    </ul>
+
+    <h3>⏱ Horas</h3>
+    <ul style="color:var(--text-secondary);line-height:1.8;margin-bottom:20px">
+        <li>Las horas se ingresan en formato HH:MM (horas y minutos separados).</li>
+        <li>Ejemplo: 1 hora y 30 minutos se ingresa como <code>1h 30m</code>.</li>
+        <li>El sistema convierte automáticamente al guardar y muestra en formato legible.</li>
+    </ul>
+</div>
+{% endblock %}

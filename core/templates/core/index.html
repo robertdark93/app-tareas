@@ -6,7 +6,16 @@
 {% endblock %}
 {% block content %}
 <div class="dashboard">
-    <h1>Bienvenido, {{ user.username }}</h1>
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">Bienvenido, {{ user.username }}</h1>
+            <p class="hero-subtitle">Gestiona tus tareas de forma eficiente</p>
+            <div class="hero-actions">
+                <a href="{% url 'task_create' %}" class="btn btn-primary btn-lg">➕ Nueva Tarea</a>
+                <a href="{% url 'task_list' %}" class="btn btn-lg">📋 Ver Tareas</a>
+            </div>
+        </div>
+    </div>
 
     <div class="stats-row">
         <div class="stat-card pending">

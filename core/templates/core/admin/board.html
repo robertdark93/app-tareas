@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load core_extras %}
 {% block title %}Tablero por Usuario{% endblock %}
 {% block content %}
 <div class="admin-page">
@@ -38,7 +39,7 @@
                     <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
                     <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
                         <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>
-                        {% if t.horas_tomadas %}<span>⏱ {{ t.horas_tomadas }}h</span>{% endif %}
+                        {% if t.horas_tomadas %}<span>⏱ {{ t.horas_tomadas|hours_display }}</span>{% endif %}
                     </div>
                 </div>
                 {% empty %}

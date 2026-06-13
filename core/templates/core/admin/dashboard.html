@@ -1,6 +1,7 @@
 {% extends 'core/base.html' %}
 {% load static %}
 {% block title %}Panel Admin{% endblock %}
+{% block back_button %}{% endblock %}
 {% block extra_head %}
 <script src="{% static 'core/vendor/chart.umd.min.js' %}"></script>
 {% endblock %}
@@ -12,6 +13,7 @@
             <a href="{% url 'admin_users' %}" class="btn">Usuarios</a>
             <a href="{% url 'admin_tasks' %}" class="btn">Tareas</a>
             <a href="{% url 'admin_board' %}" class="btn">👥 Tablero</a>
+            <a href="{% url 'admin_report' %}" class="btn">📊 Reporte</a>
             <a href="{% url 'admin_departments' %}" class="btn">Departamentos</a>
             <a href="{% url 'admin_backups' %}" class="btn">💾 Backups</a>
             <a href="{% url 'admin:index' %}" target="_blank" class="btn">Django Admin</a>
@@ -55,6 +57,28 @@
         <div class="chart-card">
             <h3>Tareas por Departamento</h3>
             <canvas id="chartDeptos"></canvas>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="charts-row">
+        <div class="chart-card full-width">
+            <h3>Tendencia Mensual (últimos 12 meses)</h3>
+            <canvas id="chartMonthlyTrend"></canvas>
+        </div>
+    </div>
+
+    <div class="charts-row">
+        {% if radar_datasets %}
+        <div class="chart-card">
+            <h3>Rendimiento por Usuario</h3>
+            <canvas id="chartRadar"></canvas>
+        </div>
+        {% endif %}
+        {% if stacked_labels %}
+        <div class="chart-card">
+            <h3>Estado por Usuario</h3>
+            <canvas id="chartStacked"></canvas>
         </div>
         {% endif %}
     </div>
@@ -182,6 +206,116 @@ new Chart(document.getElementById('chartDeptos'), {
     options: {
         responsive: true,
         plugins: { legend: { position: 'bottom', labels: { color: '#8b949e' } } }
+    }
+});
+{% endif %}
+
+// Monthly trend
+new Chart(document.getElementById('chartMonthlyTrend'), {
+    type: 'line',
+    data: {
+        labels: [{% for l in monthly_labels %}'{{ l }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [
+            {
+                label: 'Creadas',
+                data: [{% for d in monthly_created %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: '#58a6ff',
+                backgroundColor: '#58a6ff33',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#58a6ff',
+            },
+            {
+                label: 'Completadas',
+                data: [{% for d in monthly_completed %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: '#3fb950',
+                backgroundColor: '#3fb95033',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#3fb950',
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#8b949e' } } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
+            x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+    }
+});
+
+{% if radar_datasets %}
+// Radar per user
+new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: {
+        labels: [{% for l in radar_labels %}'{{ l }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [
+            {% for ds in radar_datasets %}
+            {
+                label: '{{ ds.label }}',
+                data: [{{ ds.data.0 }}, {{ ds.data.1 }}, {{ ds.data.2 }}],
+                borderColor: '{{ ds.color }}',
+                backgroundColor: '{{ ds.color }}22',
+                pointBackgroundColor: '{{ ds.color }}',
+                pointRadius: 4,
+            },
+            {% endfor %}
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#8b949e' } } },
+        scales: {
+            r: {
+                grid: { color: '#30363d' },
+                ticks: { color: '#8b949e', backdropColor: 'transparent' },
+                angleLines: { color: '#30363d' },
+                pointLabels: { color: '#8b949e' },
+            }
+        }
+    }
+});
+{% endif %}
+
+{% if stacked_labels %}
+// Stacked bar
+new Chart(document.getElementById('chartStacked'), {
+    type: 'bar',
+    data: {
+        labels: [{% for l in stacked_labels %}'{{ l }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [
+            {
+                label: 'Pendientes',
+                data: [{% for d in stacked_pendientes %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: '#d29922',
+                borderRadius: 2,
+            },
+            {
+                label: 'En Proceso',
+                data: [{% for d in stacked_proceso %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: '#58a6ff',
+                borderRadius: 2,
+            },
+            {
+                label: 'Terminadas',
+                data: [{% for d in stacked_terminadas %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: '#3fb950',
+                borderRadius: 2,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#8b949e' } } },
+        scales: {
+            x: { stacked: true, ticks: { color: '#8b949e' }, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } }
+        }
     }
 });
 {% endif %}
