@@ -172,7 +172,7 @@ def _calcular_eficiencia(qs):
         return 0
     suma = 0
     for t in con_horas:
-        if t.horas_estimadas > 0:
+        if t.horas_estimadas and t.horas_tomadas and t.horas_estimadas > 0 and t.horas_tomadas > 0:
             suma += (t.horas_estimadas / t.horas_tomadas) * 100
     return round(suma / con_horas.count(), 1)
 
@@ -193,18 +193,28 @@ class TaskListView(LoginRequiredMixin, ListView):
         prioridad = self.request.GET.get('prioridad')
         q = self.request.GET.get('q')
         etiqueta = self.request.GET.get('etiqueta')
+        usuario = self.request.GET.get('usuario')
+        departamento = self.request.GET.get('departamento')
         if estado: qs = qs.filter(estado=estado)
         if prioridad: qs = qs.filter(prioridad=prioridad)
         if q: qs = qs.filter(titulo__icontains=q)
         if etiqueta: qs = qs.filter(etiquetas__id=etiqueta)
-        return qs.prefetch_related('subtareas').select_related('usuario', 'creado_por')
+        if usuario: qs = qs.filter(usuario__id=usuario)
+        if departamento: qs = qs.filter(departamento__id=departamento)
+        return qs.prefetch_related('subtareas').select_related('usuario', 'creado_por', 'departamento')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        for k in ('estado', 'prioridad', 'q', 'etiqueta'):
+        for k in ('estado', 'prioridad', 'q', 'etiqueta', 'usuario', 'departamento'):
             ctx[f'{k}_actual'] = self.request.GET.get(k, '')
         ctx['etiquetas'] = Tag.objects.filter(usuario=self.request.user)
         ctx['user_es_admin'] = Profile.objects.filter(usuario=self.request.user, rol='admin').exists()
+        ctx['usuarios'] = User.objects.filter(is_active=True).order_by('username')
+        ctx['departamentos'] = Department.objects.all().order_by('nombre')
+        uid = self.request.GET.get('usuario')
+        did = self.request.GET.get('departamento')
+        ctx['usuario_actual_nombre'] = User.objects.filter(id=uid).values_list('username', flat=True).first() or '' if uid else ''
+        ctx['departamento_actual_nombre'] = Department.objects.filter(id=did).values_list('nombre', flat=True).first() or '' if did else ''
         # Subtask progress for each task on current page
         ctx['subtask_progress'] = {}
         for t in ctx['tareas']:

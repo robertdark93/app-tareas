@@ -32,6 +32,6 @@ else:
     print(f'Superusuario \"{username}\" ya existe.')
 "
 
-mkdir -p /app/media/avatars /app/backups
+mkdir -p /app/media/avatars /app/backups 2>/dev/null || true
 
 exec daphne -b 0.0.0.0 -p 5006 tareas_project.asgi:application
