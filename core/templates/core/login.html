@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'core/style.css' %}">
+    <link rel="stylesheet" href="{% static 'core/variables.css' %}">
+    <link rel="stylesheet" href="{% static 'core/base.css' %}">
+    <link rel="stylesheet" href="{% static 'core/layout.css' %}">
+    <link rel="stylesheet" href="{% static 'core/components.css' %}">
+    <link rel="stylesheet" href="{% static 'core/admin.css' %}">
+    <link rel="stylesheet" href="{% static 'core/responsive.css' %}">
+    <link rel="stylesheet" href="{% static 'core/toast.css' %}">
 </head>
 <body class="login-body">
     <div class="login-container">
@@ -20,6 +26,12 @@
             <div class="form-group">
                 <label for="id_password">Contraseña:</label>
                 <input type="password" name="password" id="id_password" class="form-control" required>
+            </div>
+            <div class="form-group" style="margin-bottom:12px">
+                <label class="checkbox-label" style="font-size:0.85rem">
+                    <input type="checkbox" name="remember_me" id="id_remember_me" class="remember-checkbox">
+                    Recordarme por 7 días
+                </label>
             </div>
             {% if form.non_field_errors %}
             <div class="message error">{{ form.non_field_errors.0 }}</div>

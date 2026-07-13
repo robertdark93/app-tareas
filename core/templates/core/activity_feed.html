@@ -1,0 +1,67 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Actividad Reciente{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>🕐 Actividad Reciente</h1>
+</div>
+<div class="section">
+    {% if logs %}
+    <div class="activity-timeline">
+        {% for log in logs %}
+        <div class="activity-item">
+            <div class="activity-dot"></div>
+            <div class="activity-body">
+                <div class="activity-header">
+                    <strong>{{ log.usuario.username }}</strong>
+                    <span class="activity-action badge">{{ log.get_accion_display }}</span>
+                    <span class="activity-time">{{ log.creado|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="activity-task">
+                    <a href="{% url 'task_detail' log.tarea.id %}">{{ log.tarea.titulo }}</a>
+                </div>
+                {% if log.detalle %}
+                <div class="activity-detail">{{ log.detalle }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if logs.has_other_pages %}
+    <div class="pagination" style="margin-top:20px;text-align:center">
+        {% if logs.has_previous %}
+        <a href="?page={{ logs.previous_page_number }}" class="btn btn-small">← Anterior</a>
+        {% endif %}
+        <span style="margin:0 12px;color:var(--text-muted)">Página {{ logs.number }} de {{ logs.paginator.num_pages }}</span>
+        {% if logs.has_next %}
+        <a href="?page={{ logs.next_page_number }}" class="btn btn-small">Siguiente →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="empty">No hay actividad registrada.</p>
+    {% endif %}
+</div>
+<style>
+.activity-timeline { position:relative; padding-left:28px; }
+.activity-timeline::before {
+    content:''; position:absolute; left:10px; top:8px; bottom:8px;
+    width:2px; background:var(--border);
+}
+.activity-item { position:relative; margin-bottom:16px; }
+.activity-dot {
+    position:absolute; left:-20px; top:4px; width:10px; height:10px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--bg-primary);
+}
+.activity-body {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:10px 14px;
+}
+.activity-header { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.82rem; }
+.activity-action { font-size:0.72rem; }
+.activity-time { font-size:0.72rem; color:var(--text-muted); margin-left:auto; }
+.activity-task { margin-top:2px; font-size:0.88rem; }
+.activity-task a { color:var(--accent); text-decoration:none; }
+.activity-detail { margin-top:4px; font-size:0.78rem; color:var(--text-secondary); }
+</style>
+{% endblock %}

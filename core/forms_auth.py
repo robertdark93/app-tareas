@@ -33,6 +33,12 @@ def _log_login_attempt(username, ip, success):
 
 
 class LockoutAuthenticationForm(AuthenticationForm):
+    remember_me = forms.BooleanField(
+        required=False, initial=False,
+        label='Recordarme por 7 días',
+        widget=forms.CheckboxInput(attrs={'class': 'remember-checkbox'}),
+    )
+
     def clean(self):
         username = self.cleaned_data.get('username')
         password = self.cleaned_data.get('password')
@@ -53,7 +59,6 @@ class LockoutAuthenticationForm(AuthenticationForm):
                 raise self.get_invalid_login_error()
             else:
                 _log_login_attempt(username, ip, True)
-                # Clean up old failed attempts on success
                 LoginLog.objects.filter(username=username, success=False).delete()
 
         return self.cleaned_data

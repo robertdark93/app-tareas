@@ -17,11 +17,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
+from django.http import JsonResponse
 from django.views.static import serve
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
+    path('health/', lambda r: JsonResponse({'status': 'ok'}), name='health'),
 ]
 
 if settings.MEDIA_ROOT:

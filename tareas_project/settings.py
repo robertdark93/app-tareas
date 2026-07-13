@@ -16,6 +16,8 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '10.25.1.131,localhost,12
 
 CSRF_TRUSTED_ORIGINS = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://10.25.1.131,http://localhost').split(',')
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -30,9 +32,23 @@ INSTALLED_APPS = [
 ASGI_APPLICATION = 'tareas_project.asgi.application'
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('redis', 6379)],
+        },
     },
 }
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+    },
+}
+RATELIMIT_USE_CACHE = 'default'
+RATELIMIT_ENABLE = True
+RATELIMIT_IP_PROXY_KEY = 'HTTP_X_FORWARDED_FOR'
+RATELIMIT_IP_PROXY_COUNT = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

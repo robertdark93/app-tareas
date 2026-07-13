@@ -15,6 +15,7 @@
                 <option value="">Todos</option>
                 <option value="pendiente" {% if estado_actual == 'pendiente' %}selected{% endif %}>Pendiente</option>
                 <option value="proceso" {% if estado_actual == 'proceso' %}selected{% endif %}>En Proceso</option>
+                <option value="revision" {% if estado_actual == 'revision' %}selected{% endif %}>En Revisión</option>
                 <option value="terminada" {% if estado_actual == 'terminada' %}selected{% endif %}>Terminada</option>
             </select>
             <label>Usuario:</label>

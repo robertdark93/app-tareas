@@ -1,0 +1,55 @@
+{% extends 'core/base.html' %}
+{% block title %}Configuración de Correo{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>✉️ Configuración de Correo SMTP</h1>
+        <div class="header-actions">
+            <a href="{% url 'admin_dashboard' %}" class="btn">← Volver al Panel</a>
+        </div>
+    </div>
+    <div class="section" style="max-width:550px">
+        <form method="post" id="emailForm">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="host">Servidor SMTP</label>
+                <input type="text" name="host" id="host" value="{{ config.host }}" placeholder="smtp.gmail.com" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="port">Puerto</label>
+                <input type="number" name="port" id="port" value="{{ config.port }}" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="username">Usuario</label>
+                <input type="text" name="username" id="username" value="{{ config.username }}" class="form-control" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" name="password" id="password" value="{{ config.password }}" class="form-control" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="from_email">Correo remitente</label>
+                <input type="email" name="from_email" id="from_email" value="{{ config.from_email }}" placeholder="tareas@example.com" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="use_tls" {% if config.use_tls %}checked{% endif %}>
+                    Usar TLS
+                </label>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary">💾 Guardar</button>
+                <button type="submit" name="test" value="1" class="btn" id="testBtn">📨 Enviar prueba</button>
+            </div>
+        </form>
+        <p style="margin-top:16px;font-size:0.82rem;color:var(--text-muted)">
+            El test de correo usará los valores escritos en los campos si los hay, o los guardados si están vacíos.
+        </p>
+    </div>
+</div>
+<script>
+document.getElementById('testBtn')?.addEventListener('click', function(e) {
+    if (!confirm('¿Enviar correo de prueba?')) e.preventDefault();
+});
+</script>
+{% endblock %}

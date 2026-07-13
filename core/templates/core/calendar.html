@@ -61,6 +61,29 @@
         </tbody>
     </table>
 
+    {% if agenda %}
+    <div class="section" style="margin-top:20px">
+        <h3>📋 Agenda del mes ({{ agenda|length }} tareas)</h3>
+        {% for t in agenda %}
+        <div class="task-item status-{{ t.estado }}">
+            <div class="task-info">
+                <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                {% if t.fecha_vencimiento %}<small>📅 {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>{% endif %}
+                <span class="badge {{ t.estado }}">{{ t.get_estado_display }}</span>
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.etiquetas.all %}
+                <div class="task-tags">
+                    {% for tag in t.etiquetas.all|slice:":3" %}
+                    <span class="mini-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if tareas_sin_fecha %}
     <div class="section" style="margin-top:20px">
         <h3>📋 Tareas sin fecha de vencimiento</h3>

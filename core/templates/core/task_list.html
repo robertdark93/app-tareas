@@ -5,7 +5,10 @@
 {% block content %}
 <div class="page-header">
     <h1>📝 Mis Tareas</h1>
-    <a href="{% url 'task_create' %}" class="btn btn-primary">Nueva Tarea</a>
+    <div class="header-actions">
+        <a href="{% url 'task_create' %}" class="btn btn-primary">Nueva Tarea</a>
+        <a href="{% url 'activity_feed' %}" class="btn">🕐 Actividad</a>
+    </div>
 </div>
 
 <form method="get" class="search-bar">
@@ -22,6 +25,7 @@
     <a href="{% url 'task_list' %}?{% if q_actual %}q={{ q_actual }}&{% endif %}" class="filter-btn {% if not estado_actual and not prioridad_actual and not etiqueta_actual and not usuario_actual and not departamento_actual %}active{% endif %}">Todas</a>
     <a href="{% url 'task_list' %}?estado=pendiente{% if q_actual %}&q={{ q_actual }}{% endif %}" class="filter-btn {% if estado_actual == 'pendiente' %}active{% endif %}">Pendientes</a>
     <a href="{% url 'task_list' %}?estado=proceso{% if q_actual %}&q={{ q_actual }}{% endif %}" class="filter-btn {% if estado_actual == 'proceso' %}active{% endif %}">En Proceso</a>
+    <a href="{% url 'task_list' %}?estado=revision{% if q_actual %}&q={{ q_actual }}{% endif %}" class="filter-btn {% if estado_actual == 'revision' %}active{% endif %}">En Revisión</a>
     <a href="{% url 'task_list' %}?estado=terminada{% if q_actual %}&q={{ q_actual }}{% endif %}" class="filter-btn {% if estado_actual == 'terminada' %}active{% endif %}">Terminadas</a>
 </div>
 
@@ -84,9 +88,9 @@
             {% endif %}
         </div>
     </div>
-    <ul class="task-list full">
+    <ul class="task-list full" id="taskList" data-reorder-url="{% url 'task_reorder' %}">
         {% for t in tareas %}
-        <li class="task-item status-{{ t.estado }}">
+        <li class="task-item status-{{ t.estado }}" draggable="true" data-id="{{ t.id }}">
             <div class="task-check">
                 <input type="checkbox" name="task_ids" value="{{ t.id }}" class="task-checkbox">
             </div>
@@ -94,9 +98,10 @@
                 <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
                 {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
                 <select class="status-select" data-pk="{{ t.id }}">
-                    {% for val, label in t.ESTADOS %}
-                    <option value="{{ val }}" {% if t.estado == val %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                    <option value="pendiente" {% if t.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                    <option value="proceso" {% if t.estado == 'proceso' %}selected{% endif %}>En Proceso</option>
+                    <option value="revision" {% if t.estado == 'revision' %}selected{% endif %}>En Revisión</option>
+                    <option value="terminada" {% if t.estado == 'terminada' %}selected{% endif %}>Terminada</option>
                 </select>
                 <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
                 <small>👤 {{ t.usuario.username }}{% if t.creado_por %} · creada por {{ t.creado_por.username }}{% endif %}</small>
@@ -169,32 +174,9 @@
     -webkit-appearance: auto;
 }
 .filter-select option { background: var(--bg-card); color: var(--text-primary); }
+.task-item.dragging { opacity:0.4; }
+.task-item.drag-over { border-top:2px solid var(--accent) !important; }
 </style>
-<script>
-document.getElementById('select-all')?.addEventListener('change', function() {
-    document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = this.checked);
-});
-
-document.querySelectorAll('.status-select').forEach(sel => {
-    sel.addEventListener('change', function() {
-        const pk = this.dataset.pk;
-        const estado = this.value;
-        fetch('/tasks/' + pk + '/change-status/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'estado=' + encodeURIComponent(estado),
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.ok) {
-                this.closest('.task-item').className = 'task-item status-' + d.estado;
-            }
-        })
-        .catch(() => {});
-    });
-});
-</script>
+<script src="{% static 'core/task_list.js' %}"></script>
+<script src="{% static 'core/task_reorder.js' %}"></script>
 {% endblock %}

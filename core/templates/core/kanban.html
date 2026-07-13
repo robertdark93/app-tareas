@@ -1,10 +1,11 @@
 {% extends 'core/base.html' %}
+{% load static %}
 {% block title %}Kanban{% endblock %}
 {% block content %}
 <style>
 .kanban-board {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: 16px;
     margin-top: 20px;
 }
@@ -38,19 +39,20 @@
     margin-bottom: 8px;
     border: 1px solid var(--border);
     cursor: grab;
-    transition: all 0.15s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border-left: 3px solid var(--border);
 }
 .kanban-card:hover {
     border-color: rgba(255,255,255,0.15);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
 }
 .kanban-card:active { cursor: grabbing; }
 .kanban-card.pendiente { border-left-color: var(--yellow); }
 .kanban-card.proceso { border-left-color: var(--cyan); }
+.kanban-card.revision { border-left-color: var(--purple); }
 .kanban-card.terminada { border-left-color: var(--green); opacity: 0.7; }
-.kanban-card.dragging { opacity: 0.4; }
+.kanban-card.dragging { opacity: 0.4; transform: scale(0.95) rotate(2deg); }
 .kanban-card .card-title {
     font-weight: 500;
     font-size: 0.88rem;
@@ -94,7 +96,7 @@
     </div>
 </div>
 
-<div class="kanban-board" id="kanbanBoard">
+<div class="kanban-board" id="kanbanBoard" data-update-url="{% url 'kanban_update' 0 %}">
     <div class="kanban-col" data-estado="pendiente">
         <h2>⏳ Pendientes <span class="count">{{ pendientes.count }}</span></h2>
         {% for t in pendientes %}
@@ -143,6 +145,30 @@
         {% endfor %}
     </div>
 
+    <div class="kanban-col" data-estado="revision">
+        <h2>🔍 En Revisión <span class="count">{{ revision.count }}</span></h2>
+        {% for t in revision %}
+        <div class="kanban-card revision" data-id="{{ t.id }}" draggable="true">
+            <a href="{% url 'task_detail' t.id %}" class="card-title">{{ t.titulo }}</a>
+            {% if t.usuario == user %}<span class="ownership-badge mia">Mía</span>{% elif t.usuario %}<span class="ownership-badge depto">Depto</span>{% endif %}
+            <div class="card-meta">
+                <span class="priority priority-{{ t.prioridad }}">{{ t.get_prioridad_display }}</span>
+                {% if t.fecha_vencimiento %}<span>📅 {{ t.fecha_vencimiento|date:"d/m" }}</span>{% endif %}
+                {% if t.usuario %}<span>👤 {{ t.usuario.username }}</span>{% endif %}
+            </div>
+            {% if t.etiquetas.all %}
+            <div class="card-tags" style="margin-top:6px">
+                {% for tag in t.etiquetas.all %}
+                <span class="card-tag" style="background:{{ tag.color }}22;color:{{ tag.color }};border-color:{{ tag.color }}44">{{ tag.nombre }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:20px 0">Sin tareas</p>
+        {% endfor %}
+    </div>
+
     <div class="kanban-col" data-estado="terminada">
         <h2>✅ Terminadas <span class="count">{{ terminadas.count }}</span></h2>
         {% for t in terminadas %}
@@ -167,79 +193,8 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const board = document.getElementById('kanbanBoard');
-    let dragSrc = null;
+{% endblock %}
 
-    document.querySelectorAll('.kanban-card[draggable]').forEach(card => {
-        card.addEventListener('dragstart', function(e) {
-            dragSrc = this;
-            this.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', this.dataset.id);
-        });
-        card.addEventListener('dragend', function() {
-            this.classList.remove('dragging');
-            document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
-        });
-    });
-
-    document.querySelectorAll('.kanban-col').forEach(col => {
-        col.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.classList.add('drag-over');
-        });
-        col.addEventListener('dragleave', function() {
-            this.classList.remove('drag-over');
-        });
-        col.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.classList.remove('drag-over');
-            const taskId = e.dataTransfer.getData('text/plain');
-            const newEstado = this.dataset.estado;
-            if (!taskId || !dragSrc) return;
-            const oldEstado = dragSrc.closest('.kanban-col').dataset.estado;
-            if (oldEstado === newEstado) return;
-
-            // Optimistic UI update
-            const card = dragSrc;
-            card.className = 'kanban-card ' + newEstado;
-            this.insertBefore(card, this.querySelector('p') || null);
-            updateCounts();
-
-            // POST to server
-            const form = new FormData();
-            form.append('estado', newEstado);
-            fetch('{% url "kanban_update" 0 %}'.replace('0', taskId), {
-                method: 'POST',
-                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-                body: form,
-            }).then(r => {
-                if (!r.ok) {
-                    card.className = 'kanban-card ' + oldEstado;
-                    const oldCol = document.querySelector(`.kanban-col[data-estado="${oldEstado}"]`);
-                    if (oldCol) oldCol.insertBefore(card, oldCol.querySelector('p') || null);
-                    updateCounts();
-                }
-            }).catch(() => {
-                card.className = 'kanban-card ' + oldEstado;
-                const oldCol = document.querySelector(`.kanban-col[data-estado="${oldEstado}"]`);
-                if (oldCol) oldCol.insertBefore(card, oldCol.querySelector('p') || null);
-                updateCounts();
-            });
-        });
-    });
-
-    function updateCounts() {
-        [('pendiente'), ('proceso'), ('terminada')].forEach(est => {
-            const col = document.querySelector(`.kanban-col[data-estado="${est}"]`);
-            if (!col) return;
-            const count = col.querySelectorAll('.kanban-card').length;
-            const span = col.querySelector('h2 .count');
-            if (span) span.textContent = count;
-        });
-    }
-});
-</script>
+{% block extra_scripts %}
+<script src="{% static 'core/kanban.js' %}"></script>
 {% endblock %}

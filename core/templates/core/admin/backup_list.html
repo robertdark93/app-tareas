@@ -6,8 +6,18 @@
         <h1>💾 Copias de Seguridad</h1>
         <div class="header-actions">
             <a href="{% url 'admin_dashboard' %}" class="btn">← Volver al Panel</a>
+            <a href="{% url 'admin_backup_config' %}" class="btn">⚙️ Configuración</a>
         </div>
     </div>
+
+    {% if config and config.auto_backup %}
+    <div class="alert alert-info" style="margin-bottom:1rem;padding:8px 14px;border-radius:6px;background:rgba(88,166,255,0.1);border:1px solid rgba(88,166,255,0.3)">
+        🔄 Respaldos automáticos: <strong>activados</strong> (cada {{ config.interval_hours }}h, conservando {{ config.keep_last }})
+        {% if config.last_backup %}
+        · Último respaldo: {{ config.last_backup|date:'d/m/Y H:i' }}
+        {% endif %}
+    </div>
+    {% endif %}
 
     <form method="post" action="{% url 'admin_backups' %}" style="margin-bottom:1.5rem">
         {% csrf_token %}

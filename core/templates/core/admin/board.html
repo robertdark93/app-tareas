@@ -13,10 +13,10 @@
         <h2 style="display:flex;justify-content:space-between;align-items:center">
             <span>👤 {{ item.usuario.username }} ({{ item.total }})</span>
             <span style="font-size:0.8rem;font-weight:400">
-                ⏳ {{ item.pendientes.count }} | ⚡ {{ item.proceso.count }} | ✅ {{ item.terminadas.count }}
+                ⏳ {{ item.pendientes.count }} | ⚡ {{ item.proceso.count }} | 🔍 {{ item.revision.count }} | ✅ {{ item.terminadas.count }}
             </span>
         </h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
             <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border:1px solid var(--border)">
                 <h3 style="font-size:0.85rem;color:var(--yellow);margin-bottom:8px">⏳ Pendientes</h3>
                 {% for t in item.pendientes %}
@@ -36,6 +36,20 @@
                 <h3 style="font-size:0.85rem;color:var(--cyan);margin-bottom:8px">⚡ En Proceso</h3>
                 {% for t in item.proceso %}
                 <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--cyan);font-size:0.82rem">
+                    <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
+                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
+                        <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>
+                        {% if t.horas_tomadas %}<span>⏱ {{ t.horas_tomadas|hours_display }}</span>{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p style="color:var(--text-muted);font-size:0.8rem">Sin tareas</p>
+                {% endfor %}
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border:1px solid var(--border)">
+                <h3 style="font-size:0.85rem;color:var(--purple);margin-bottom:8px">🔍 En Revisión</h3>
+                {% for t in item.revision %}
+                <div style="padding:6px 8px;margin-bottom:4px;background:var(--bg-card);border-radius:4px;border-left:2px solid var(--purple);font-size:0.82rem">
                     <a href="{% url 'task_detail' t.id %}" style="color:var(--text-primary);text-decoration:none">{{ t.titulo|truncatechars:30 }}</a>
                     <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
                         <span class="priority priority-{{ t.prioridad }}" style="font-size:0.6rem">{{ t.get_prioridad_display }}</span>

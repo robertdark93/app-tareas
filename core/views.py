@@ -10,9 +10,12 @@ import uuid
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import User
+from django.utils.decorators import method_decorator
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
+from django_ratelimit.decorators import ratelimit
 from django.db.models import Sum, Avg, Q, Count
 from django.contrib import messages
 from django.conf import settings
@@ -28,13 +31,14 @@ import re
 
 from .models import (Task, Note, Notification, Tag, Attachment,
                      Department, Profile, TaskTemplate, TaskComment, TaskLog, LoginLog,
-                     PasswordHistory, AdminLog, TaskWatcher)
+                     PasswordHistory, AdminLog, TaskWatcher, BackupConfig, EmailConfig)
 from .forms import (TaskCreateForm, TaskUpdateForm, NoteForm,
                     AdminUserCreateForm, AdminUserEditForm, AdminDepartmentForm,
                     CommentForm, TaskTemplateForm, ProfileForm)
+from .forms_auth import LockoutAuthenticationForm
 
 try:
-    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.pagesizes import letter, landscape
     from reportlab.lib.units import inch
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
@@ -49,6 +53,32 @@ try:
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
+
+
+# ─── Custom Login ─────────────────────────────────────────────────
+
+@method_decorator(ratelimit(key='ip', rate='10/m', method='POST'), name='dispatch')
+class CustomLoginView(LoginView):
+    template_name = 'core/login.html'
+    authentication_form = LockoutAuthenticationForm
+
+    def dispatch(self, *args, **kwargs):
+        resp = super().dispatch(*args, **kwargs)
+        if getattr(self.request, 'limited', False):
+            from django.contrib import messages
+            messages.error(self.request, 'Demasiados intentos desde esta IP. Espera un minuto.')
+            return redirect('login')
+        return resp
+
+    def form_valid(self, form):
+        remember = form.cleaned_data.get('remember_me')
+        if remember:
+            self.request.session.set_expiry(604800)
+            self.request.session['remember_me'] = True
+        else:
+            self.request.session.set_expiry(0)
+            self.request.session['remember_me'] = False
+        return super().form_valid(form)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -73,17 +103,17 @@ def crear_log(tarea, usuario, accion, detalle=''):
 def tareas_visibles(usuario):
     profile = Profile.objects.filter(usuario=usuario).first()
     if not profile:
-        return Task.objects.filter(usuario=usuario)
+        return Task.objects.filter(usuario=usuario).select_related('usuario', 'creado_por', 'departamento')
     deptos = profile.departamentos.all()
     if profile.rol in ('admin', 'moderador'):
         qs = Task.objects.all()
         if deptos:
             qs = qs.filter(Q(usuario=usuario) | Q(departamento__in=deptos))
-        return qs.distinct()
+        return qs.select_related('usuario', 'creado_por', 'departamento').distinct()
     qs = Task.objects.filter(usuario=usuario)
     if deptos:
         qs = qs | Task.objects.filter(departamento__in=deptos)
-    return qs.distinct()
+    return qs.select_related('usuario', 'creado_por', 'departamento').distinct()
 
 
 def _admin_log(usuario, accion, detalle=''):
@@ -121,10 +151,11 @@ def index(request):
     hoy = date.today()
     qs = tareas_visibles(request.user)
     chart_estados = {
-        'labels': ['Pendientes', 'En Proceso', 'Terminadas'],
+        'labels': ['Pendientes', 'En Proceso', 'En Revisión', 'Terminadas'],
         'data': [
             qs.filter(estado='pendiente').count(),
             qs.filter(estado='proceso').count(),
+            qs.filter(estado='revision').count(),
             qs.filter(estado='terminada').count(),
         ],
     }
@@ -144,12 +175,14 @@ def index(request):
     context = {
         'tareas_pendientes': qs.filter(estado='pendiente'),
         'tareas_proceso': qs.filter(estado='proceso'),
+        'tareas_revision': qs.filter(estado='revision'),
         'tareas_hoy': qs.filter(fecha_vencimiento=hoy),
         'tareas_urgentes': qs.filter(prioridad='urgente', estado__in=['pendiente', 'proceso']),
         'notas_recientes': Note.objects.filter(usuario=request.user)[:5],
         'notificaciones': Notification.objects.filter(usuario=request.user, leido=False),
         'total_pendientes': qs.filter(estado='pendiente').count(),
         'total_proceso': qs.filter(estado='proceso').count(),
+        'total_revision': qs.filter(estado='revision').count(),
         'total_terminadas': qs.filter(estado='terminada').count(),
         'etiquetas': Tag.objects.filter(usuario=request.user),
         'total_tareas': qs.count(),
@@ -361,10 +394,12 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'core/task_form.html'
 
     def get_queryset(self):
-        return Task.objects.filter(usuario=self.request.user)
+        return tareas_visibles(self.request.user)
 
     def dispatch(self, request, *args, **kwargs):
         resp = super().dispatch(request, *args, **kwargs)
+        if not request.user.is_authenticated:
+            return resp
         tarea = self.get_object()
         if tarea.locked_by and tarea.locked_by != request.user:
             elapsed = (timezone.now() - tarea.locked_at).total_seconds() / 60
@@ -499,9 +534,10 @@ def kanban(request):
     qs = tareas_visibles(request.user)
     pendientes = qs.filter(estado='pendiente')
     proceso = qs.filter(estado='proceso')
+    revision = qs.filter(estado='revision')
     terminadas = qs.filter(estado='terminada')
     return render(request, 'core/kanban.html', {
-        'pendientes': pendientes, 'proceso': proceso, 'terminadas': terminadas,
+        'pendientes': pendientes, 'proceso': proceso, 'revision': revision, 'terminadas': terminadas,
     })
 
 
@@ -512,7 +548,7 @@ def kanban_update(request, pk):
     if tarea not in tareas_visibles(request.user): return JsonResponse({'error': 'No'}, status=403)
     data = request.POST
     nuevo_estado = data.get('estado')
-    if nuevo_estado in ('pendiente', 'proceso', 'terminada'):
+    if nuevo_estado in ('pendiente', 'proceso', 'revision', 'terminada'):
         old = tarea.estado
         tarea.estado = nuevo_estado
         if nuevo_estado == 'terminada' and not tarea.fecha_completada:
@@ -597,12 +633,13 @@ def calendar_view(request):
     ud = date(ano, mes, cal_module.monthrange(ano, mes)[1])
     qs = Task.objects.filter(usuario=request.user)
     tareas_mes = qs.filter(fecha_vencimiento__gte=pd, fecha_vencimiento__lte=ud)
-    tareas_sin_fecha = qs.filter(fecha_vencimiento__isnull=True, estado__in=['pendiente', 'proceso'])
+    tareas_sin_fecha = qs.filter(fecha_vencimiento__isnull=True, estado__in=['pendiente', 'proceso', 'revision'])
     por_dia = {}
     for t in tareas_mes:
         por_dia.setdefault(t.fecha_vencimiento.day, []).append(t)
     meses = [(i, ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
                   'Agosto','Septiembre','Octubre','Noviembre','Diciembre'][i-1]) for i in range(1,13)]
+    agenda = tareas_mes.order_by('fecha_vencimiento')
     ctx = {
         'ano': ano, 'mes': mes, 'nombre_mes': dict(meses)[mes],
         'dias_mes': dias_mes, 'tareas_por_dia': por_dia,
@@ -612,6 +649,7 @@ def calendar_view(request):
         'ano_anterior': ano if mes > 1 else ano - 1,
         'mes_siguiente': mes + 1 if mes < 12 else 1,
         'ano_siguiente': ano if mes < 12 else ano + 1,
+        'agenda': agenda,
     }
     return render(request, 'core/calendar.html', ctx)
 
@@ -721,11 +759,29 @@ class NoteDeleteView(LoginRequiredMixin, DeleteView):
 def summary(request):
     ano = int(request.GET.get('ano', datetime.now().year))
     mes = int(request.GET.get('mes', datetime.now().month))
+    usuario_id = request.GET.get('usuario') or None
+    filtro_estado = request.GET.get('filtro_estado', 'todas')
+
     qs = tareas_visibles(request.user)
     tareas_mes = qs.filter(fecha_creacion__year=ano, fecha_creacion__month=mes)
-    completadas = tareas_mes.filter(estado='terminada')
-    pendientes = tareas_mes.filter(estado='pendiente')
-    proceso = tareas_mes.filter(estado='proceso')
+
+    if usuario_id:
+        user_exists = User.objects.filter(pk=usuario_id).exists()
+        if user_exists:
+            tareas_mes = tareas_mes.filter(usuario_id=usuario_id)
+
+    if filtro_estado == 'terminada':
+        tareas_mes = tareas_mes.filter(estado='terminada')
+        completadas = tareas_mes
+        pendientes = tareas_mes.none()
+        proceso = tareas_mes.none()
+        revision = tareas_mes.none()
+    else:
+        completadas = tareas_mes.filter(estado='terminada')
+        pendientes = tareas_mes.filter(estado='pendiente')
+        proceso = tareas_mes.filter(estado='proceso')
+        revision = tareas_mes.filter(estado='revision')
+
     total_horas = completadas.aggregate(total=Sum('horas_tomadas'))['total'] or 0
     prom = completadas.aggregate(p=Avg('horas_tomadas'))['p'] or 0
     meses = [(i, ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
@@ -750,16 +806,20 @@ def summary(request):
     # Chart: horas por tarea (top 10)
     top_horas = completadas.filter(horas_tomadas__isnull=False).order_by('-horas_tomadas')[:10]
 
+    usuarios = User.objects.filter(is_active=True).order_by('username')
+
     return render(request, 'core/summary.html', {
         'ano': ano, 'mes': mes, 'nombre_mes': dict(meses)[mes],
         'total_tareas': tareas_mes.count(),
         'tareas_completadas': completadas,
         'tareas_pendientes_list': pendientes,
         'tareas_proceso_list': proceso,
+        'tareas_revision_list': revision,
         'tareas_terminadas_list': completadas,
         'conteo_estados': {
             'pendiente': pendientes.count(),
             'proceso': proceso.count(),
+            'revision': revision.count(),
             'terminada': completadas.count(),
         },
         'total_horas': total_horas, 'promedio_horas': prom,
@@ -770,6 +830,9 @@ def summary(request):
         'prioridad_labels': prioridad_labels,
         'prioridad_data': prioridad_data,
         'top_horas': top_horas,
+        'usuarios': usuarios,
+        'usuario_selected': int(usuario_id) if usuario_id else None,
+        'filtro_estado': filtro_estado,
     })
 
 
@@ -819,9 +882,39 @@ def workload(request):
         total=Count('task'),
         pendientes=Count('task', filter=Q(task__estado='pendiente')),
         proceso=Count('task', filter=Q(task__estado='proceso')),
+        revision=Count('task', filter=Q(task__estado='revision')),
         terminadas=Count('task', filter=Q(task__estado='terminada')),
     ).order_by('username')
     return render(request, 'core/workload.html', {'usuarios': usuarios})
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  ACTIVITY FEED
+# ═══════════════════════════════════════════════════════════════════
+
+@login_required
+def activity_feed(request):
+    logs = TaskLog.objects.filter(tarea__in=tareas_visibles(request.user)).select_related('usuario', 'tarea')
+    page = request.GET.get('page', 1)
+    paginator = Paginator(logs, 50)
+    try:
+        logs_page = paginator.page(page)
+    except:
+        logs_page = paginator.page(1)
+    return render(request, 'core/activity_feed.html', {'logs': logs_page})
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  TASK LIST REORDER (drag & drop)
+# ═══════════════════════════════════════════════════════════════════
+
+@login_required
+@require_POST
+def task_reorder(request):
+    task_ids = request.POST.getlist('task_ids[]')
+    for idx, tid in enumerate(task_ids):
+        Task.objects.filter(pk=tid, usuario=request.user).update(orden=idx)
+    return JsonResponse({'ok': True})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -857,35 +950,62 @@ def export_pdf(request):
     if not HAS_REPORTLAB:
         messages.error(request, 'ReportLab no instalado. pip install reportlab')
         return redirect('summary')
-    ano = int(request.GET.get('ano', datetime.now().year))
-    mes = int(request.GET.get('mes', datetime.now().month))
-    qs = tareas_visibles(request.user).filter(fecha_creacion__year=ano, fecha_creacion__month=mes).order_by('fecha_creacion')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    estado_filtro = request.GET.get('estado', '')
+    orientacion = request.GET.get('orientacion', 'vertical')
+    qs = tareas_visibles(request.user)
+    if desde:
+        try:
+            qs = qs.filter(fecha_creacion__gte=datetime.strptime(desde, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            qs = qs.filter(fecha_creacion__lte=datetime.strptime(hasta, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if estado_filtro:
+        qs = qs.filter(estado=estado_filtro)
+    qs = qs.order_by('fecha_creacion')
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    pagesize = landscape(letter) if orientacion == 'horizontal' else letter
+    doc = SimpleDocTemplate(buf, pagesize=pagesize, topMargin=0.5*inch, bottomMargin=0.5*inch)
     styles = getSampleStyleSheet()
-    els = [Paragraph(f'Resumen de Tareas - {mes}/{ano}', styles['Title']), Spacer(1, 12)]
+    titulo = 'Resumen de Tareas'
+    if desde or hasta:
+        titulo += f' ({desde or "—"} a {hasta or "—"})'
+    els = [Paragraph(titulo, styles['Title']), Spacer(1, 12)]
     comp = qs.filter(estado='terminada')
     th = comp.aggregate(t=Sum('horas_tomadas'))['t'] or 0
     els.append(Paragraph(
-        f'Total: {qs.count()} | Completadas: {comp.count()} | Pendientes: {qs.filter(estado="pendiente").count()} | Horas: {th:.1f}h',
+        f'Total: {qs.count()} | Completadas: {comp.count()} | Pendientes: {qs.filter(estado="pendiente").count()} | '
+        f'En Proceso: {qs.filter(estado="proceso").count()} | En Revisi\u00f3n: {qs.filter(estado="revision").count()} | '
+        f'Horas: {th:.1f}h',
         styles['Normal']))
     els.append(Spacer(1, 12))
-    data = [['Título', 'Estado', 'Usuario', 'Horas', 'Creada']]
+    data = [['Título', 'Estado', 'Prioridad', 'Usuario', 'Depto', 'Horas', 'Creada', 'Vence']]
     for t in qs:
-        data.append([t.titulo[:60], t.get_estado_display(), t.usuario.username, f'{t.horas_tomadas or "-"}h', t.fecha_creacion.strftime('%d/%m/%Y')])
+        data.append([
+            t.titulo[:60], t.get_estado_display(), t.get_prioridad_display(),
+            t.usuario.username, t.departamento or '-',
+            f'{t.horas_tomadas or "-"}h', t.fecha_creacion.strftime('%d/%m/%Y'),
+            t.fecha_vencimiento.strftime('%d/%m/%Y') if t.fecha_vencimiento else '-',
+        ])
     if len(data) > 1:
-        tbl = Table(data, colWidths=[2.5*inch, 1*inch, 1*inch, 0.7*inch, 1*inch])
+        w = [2*inch, 0.9*inch, 0.7*inch, 0.9*inch, 0.8*inch, 0.6*inch, 0.8*inch, 0.8*inch]
+        tbl = Table(data, colWidths=w)
         tbl.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a73e8')),
             ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f5f5')]),
         ]))
         els.append(tbl)
     doc.build(els)
     resp = HttpResponse(buf.getvalue(), content_type='application/pdf')
-    resp['Content-Disposition'] = f'attachment; filename="resumen_{ano}_{mes}.pdf"'
+    resp['Content-Disposition'] = 'attachment; filename="resumen_' + datetime.now().strftime('%Y%m%d') + '.pdf"'
     return resp
 
 
@@ -986,7 +1106,7 @@ def admin_dashboard(request):
 
     # Radar per user (top 5 users by total tasks)
     top5 = User.objects.annotate(total=Count('task')).filter(total__gt=0).order_by('-total')[:5]
-    radar_labels = ['Pendientes', 'En Proceso', 'Terminadas']
+    radar_labels = ['Pendientes', 'En Proceso', 'En Revisión', 'Terminadas']
     radar_datasets = []
     radar_colors = ['#58a6ff', '#3fb950', '#d29922', '#bc8cff', '#f85149']
     for idx, u in enumerate(top5):
@@ -996,6 +1116,7 @@ def admin_dashboard(request):
             'data': [
                 tareas_user.filter(estado='pendiente').count(),
                 tareas_user.filter(estado='proceso').count(),
+                tareas_user.filter(estado='revision').count(),
                 tareas_user.filter(estado='terminada').count(),
             ],
             'color': radar_colors[idx % len(radar_colors)],
@@ -1006,11 +1127,13 @@ def admin_dashboard(request):
     stacked_labels = [u.username for u in top10]
     stacked_pendientes = []
     stacked_proceso = []
+    stacked_revision = []
     stacked_terminadas = []
     for u in top10:
         tareas_user = qs.filter(usuario=u)
         stacked_pendientes.append(tareas_user.filter(estado='pendiente').count())
         stacked_proceso.append(tareas_user.filter(estado='proceso').count())
+        stacked_revision.append(tareas_user.filter(estado='revision').count())
         stacked_terminadas.append(tareas_user.filter(estado='terminada').count())
 
     return render(request, 'core/admin/dashboard.html', {
@@ -1019,6 +1142,7 @@ def admin_dashboard(request):
         'tareas_completadas': qs.filter(estado='terminada').count(),
         'tareas_pendientes': qs.filter(estado='pendiente').count(),
         'tareas_proceso': qs.filter(estado='proceso').count(),
+        'tareas_revision': qs.filter(estado='revision').count(),
         'total_departamentos': Department.objects.count(),
         'resumen_usuarios': usuarios,
         'chart_tareas_por_usuario_labels': user_labels,
@@ -1033,6 +1157,7 @@ def admin_dashboard(request):
         'stacked_labels': stacked_labels,
         'stacked_pendientes': stacked_pendientes,
         'stacked_proceso': stacked_proceso,
+        'stacked_revision': stacked_revision,
         'stacked_terminadas': stacked_terminadas,
         'login_logs': LoginLog.objects.all()[:10],
         'admin_logs': AdminLog.objects.all()[:15],
@@ -1147,6 +1272,15 @@ def admin_department_edit(request, pk):
 
 
 BACKUP_DIR = settings.BASE_DIR / 'backups'
+BACKUP_EXTENSIONS = {'.sqlite3', '.dump', '.sql', '.gz'}
+
+def _prune_old_backups(backup_dir, keep_last):
+    files = sorted(
+        [f for f in backup_dir.iterdir() if f.suffix in BACKUP_EXTENSIONS],
+        key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    for f in files[keep_last:]:
+        f.unlink()
 
 @login_required
 @admin_required
@@ -1159,6 +1293,9 @@ def admin_backups(request):
         if accion == 'crear':
             call_command('backup_tareas')
             _admin_log(request.user, 'backup', 'Copia de seguridad creada desde admin')
+            config = BackupConfig.objects.first()
+            if config and config.keep_last:
+                _prune_old_backups(backup_dir, config.keep_last)
             messages.success(request, 'Copia de seguridad creada.')
         elif accion == 'eliminar':
             filename = request.POST.get('filename', '')
@@ -1182,7 +1319,7 @@ def admin_backups(request):
 
     backups = []
     for f in sorted(backup_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
-        if f.suffix == '.sqlite3':
+        if f.suffix in BACKUP_EXTENSIONS:
             stat = f.stat()
             size_kb = stat.st_size / 1024
             backups.append({
@@ -1191,7 +1328,90 @@ def admin_backups(request):
                 'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
             })
 
-    return render(request, 'core/admin/backup_list.html', {'backups': backups})
+    config = BackupConfig.objects.first()
+    return render(request, 'core/admin/backup_list.html', {'backups': backups, 'config': config})
+
+
+@login_required
+@admin_required
+def admin_backup_config(request):
+    config = BackupConfig.objects.first()
+    if not config:
+        config = BackupConfig.objects.create()
+
+    if request.method == 'POST':
+        config.auto_backup = request.POST.get('auto_backup') == 'on'
+        config.interval_hours = int(request.POST.get('interval_hours', 24))
+        config.keep_last = int(request.POST.get('keep_last', 10))
+        config.save()
+        messages.success(request, 'Configuración de respaldos actualizada.')
+        return redirect('admin_backups')
+
+    return render(request, 'core/admin/backup_config.html', {'config': config})
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  EMAIL CONFIG
+# ═══════════════════════════════════════════════════════════════════
+
+@login_required
+@admin_required
+def admin_email_config(request):
+    config = EmailConfig.objects.first()
+    if not config:
+        config = EmailConfig.objects.create()
+
+    ctx = {'config': config, 'saved': ''}
+
+    if request.method == 'POST':
+        host = request.POST.get('host', '').strip()
+        port = request.POST.get('port', '587').strip()
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '').strip()
+        from_email = request.POST.get('from_email', '').strip()
+        use_tls = request.POST.get('use_tls') == 'on'
+
+        test_mode = request.POST.get('test') == '1'
+
+        # Use form values if provided, otherwise fall back to saved config
+        use_host = host or config.host
+        use_port = int(port) if port else config.port
+        use_user = username or config.username
+        use_pass = password or config.password
+        use_from = from_email or config.from_email
+        use_tls_val = use_tls if (host or port or username or password or from_email) else config.use_tls
+
+        if test_mode:
+            if not use_host or not use_port or not use_user or not use_pass or not use_from:
+                messages.error(request, 'Complete todos los campos o guarde una configuración primero.')
+                return render(request, 'core/admin/email_config.html', ctx)
+            try:
+                import smtplib
+                if use_tls_val:
+                    server = smtplib.SMTP(use_host, use_port, timeout=10)
+                    server.starttls()
+                else:
+                    server = smtplib.SMTP(use_host, use_port, timeout=10)
+                server.login(use_user, use_pass)
+                server.sendmail(use_from, [use_from], f'Subject: Prueba de correo\r\n\r\nCorreo de prueba desde Gestor de Tareas.')
+                server.quit()
+                messages.success(request, f'✅ Correo de prueba enviado a {use_from}')
+            except Exception as e:
+                messages.error(request, f'Error al enviar correo: {e}')
+            return render(request, 'core/admin/email_config.html', ctx)
+
+        # Save
+        config.host = use_host
+        config.port = use_port
+        config.username = use_user
+        config.password = use_pass
+        config.from_email = use_from
+        config.use_tls = use_tls_val
+        config.save()
+        messages.success(request, 'Configuración de correo guardada.')
+        return redirect('admin_email_config')
+
+    return render(request, 'core/admin/email_config.html', ctx)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1209,6 +1429,7 @@ def admin_board(request):
             'usuario': u,
             'pendientes': qs.filter(estado='pendiente'),
             'proceso': qs.filter(estado='proceso'),
+            'revision': qs.filter(estado='revision'),
             'terminadas': qs.filter(estado='terminada'),
             'total': qs.count(),
         })
@@ -1409,9 +1630,11 @@ def admin_report(request):
         completadas = tareas.filter(estado='terminada')
         pendientes = tareas.filter(estado='pendiente')
         proceso = tareas.filter(estado='proceso')
+        revision = tareas.filter(estado='revision')
         count_completadas = completadas.count()
         count_pendientes = pendientes.count()
         count_proceso = proceso.count()
+        count_revision = revision.count()
         horas = completadas.aggregate(s=Sum('horas_tomadas'))['s'] or 0
         prom = (horas / count_completadas) if count_completadas else 0
         total_count = tareas.count()
@@ -1422,6 +1645,7 @@ def admin_report(request):
             'completadas': count_completadas,
             'pendientes': count_pendientes,
             'proceso': count_proceso,
+            'revision': count_revision,
             'horas': horas,
             'promedio': round(prom, 2),
             'pct_completadas': pct,

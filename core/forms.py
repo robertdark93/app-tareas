@@ -25,8 +25,8 @@ class TaskCreateForm(forms.ModelForm):
                   'horas_estimadas', 'fecha_vencimiento', 'recordatorio',
                   'recurrente', 'frecuencia', 'parent', 'usuario']
         widgets = {
-            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
-            'recordatorio': forms.DateTimeInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA HH:MM', 'autocomplete': 'off'}, format='%d/%m/%Y %H:%M'),
+            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control datepicker', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
+            'recordatorio': forms.DateTimeInput(attrs={'class': 'form-control datetimepicker', 'placeholder': 'DD/MM/AAAA HH:MM', 'autocomplete': 'off'}, format='%d/%m/%Y %H:%M'),
             'comentarios': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'prioridad': forms.Select(attrs={'class': 'form-control'}),
@@ -70,8 +70,8 @@ class TaskUpdateForm(forms.ModelForm):
                   'horas_estimadas', 'fecha_vencimiento', 'horas_tomadas', 'recordatorio',
                   'recurrente', 'frecuencia', 'parent', 'usuario']
         widgets = {
-            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
-            'recordatorio': forms.DateTimeInput(attrs={'class': 'form-control', 'placeholder': 'DD/MM/AAAA HH:MM', 'autocomplete': 'off'}, format='%d/%m/%Y %H:%M'),
+            'fecha_vencimiento': forms.DateInput(attrs={'class': 'form-control datepicker', 'placeholder': 'DD/MM/AAAA', 'autocomplete': 'off'}, format='%d/%m/%Y'),
+            'recordatorio': forms.DateTimeInput(attrs={'class': 'form-control datetimepicker', 'placeholder': 'DD/MM/AAAA HH:MM', 'autocomplete': 'off'}, format='%d/%m/%Y %H:%M'),
             'comentarios': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'estado': forms.Select(attrs={'class': 'form-control'}),

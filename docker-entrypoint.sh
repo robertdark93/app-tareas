@@ -4,9 +4,28 @@ set -e
 # Esperar a PostgreSQL si estamos usando Docker
 if [ -n "$DB_HOST" ]; then
     echo "Esperando a PostgreSQL..."
-    until pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "$DB_NAME" 2>/dev/null; do
-        sleep 1
-    done
+    if command -v pg_isready &>/dev/null; then
+        until pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "$DB_NAME" 2>/dev/null; do
+            sleep 1
+        done
+    else
+        until python -c "
+import psycopg2, os, time
+try:
+    psycopg2.connect(
+        host=os.environ.get('DB_HOST'),
+        port=os.environ.get('DB_PORT', 5432),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD'),
+        dbname=os.environ.get('DB_NAME')
+    )
+    print('ok', end='')
+except Exception:
+    exit(1)
+" 2>/dev/null; do
+            sleep 1
+        done
+    fi
     echo "PostgreSQL listo."
 fi
 

@@ -5,14 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestor de Tareas{% endblock %}</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'core/style.css' %}">
+    <link rel="manifest" href="{% static 'core/manifest.json' %}">
+    <link rel="stylesheet" href="{% static 'core/variables.css' %}">
+    <link rel="stylesheet" href="{% static 'core/base.css' %}">
+    <link rel="stylesheet" href="{% static 'core/layout.css' %}">
+    <link rel="stylesheet" href="{% static 'core/components.css' %}">
+    <link rel="stylesheet" href="{% static 'core/admin.css' %}">
+    <link rel="stylesheet" href="{% static 'core/responsive.css' %}">
+    <link rel="stylesheet" href="{% static 'core/toast.css' %}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
         <div class="container nav-container">
             <a href="{% url 'index' %}" class="nav-brand">📋 Gestor de Tareas</a>
-            <button class="hamburger" id="hamburgerBtn" aria-label="Menú">☰</button>
             {% if user.is_authenticated %}
             <div class="nav-links" id="navLinks">
                 <a href="{% url 'index' %}">Inicio</a>
@@ -80,90 +86,13 @@
 
         {% block content %}{% endblock %}
     </div>
+    <div id="toast-container"></div>
     {% block extra_scripts %}{% endblock %}
+    <script src="{% static 'core/base.js' %}"></script>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // ── Hamburger toggle ──
-        const hamburger = document.getElementById('hamburgerBtn');
-        const navLinks = document.getElementById('navLinks');
-        if (hamburger && navLinks) {
-            hamburger.addEventListener('click', function() {
-                navLinks.classList.toggle('open');
-                hamburger.textContent = navLinks.classList.contains('open') ? '✕' : '☰';
-            });
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.nav-container')) {
-                    navLinks.classList.remove('open');
-                    hamburger.textContent = '☰';
-                }
-            });
-        }
-
-        // ── Profile dropdown ──
-        const profileTrigger = document.getElementById('profileTrigger');
-        const profileMenu = document.getElementById('profileMenu');
-        if (profileTrigger && profileMenu) {
-            profileTrigger.addEventListener('click', function(e) {
-                e.preventDefault();
-                profileMenu.classList.toggle('open');
-            });
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.profile-dropdown')) {
-                    profileMenu.classList.remove('open');
-                }
-            });
-        }
-
-        // ── Theme toggle ──
-        const themeToggle = document.getElementById('themeToggle');
-        const saved = localStorage.getItem('theme');
-        if (saved === 'light') document.body.classList.add('light-theme');
-
-        if (themeToggle) {
-            themeToggle.addEventListener('click', function() {
-                document.body.classList.toggle('light-theme');
-                const isLight = document.body.classList.contains('light-theme');
-                localStorage.setItem('theme', isLight ? 'light' : 'dark');
-                themeToggle.textContent = isLight ? '🌙' : '🌓';
-            });
-            themeToggle.textContent = saved === 'light' ? '🌙' : '🌓';
-        }
-
-        // ── Notifications WebSocket ──
-        {% if user.is_authenticated %}
-        const notifLink = document.querySelector('.notif-link');
-        function updateNotifBadge(count) {
-            let badge = document.querySelector('.notif-badge');
-            if (count > 0) {
-                if (badge) {
-                    badge.textContent = count;
-                } else {
-                    badge = document.createElement('span');
-                    badge.className = 'notif-badge';
-                    badge.textContent = count;
-                    if (notifLink) notifLink.appendChild(badge);
-                }
-            } else if (badge) {
-                badge.remove();
-            }
-        }
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = protocol + '//' + window.location.host + '/ws/notifications/';
-        let ws = null;
-        function connectWs() {
-            ws = new WebSocket(wsUrl);
-            ws.onmessage = function(e) {
-                const data = JSON.parse(e.data);
-                if (data.count !== undefined) updateNotifBadge(data.count);
-            };
-            ws.onclose = function() {
-                setTimeout(connectWs, 3000);
-            };
-        }
-        connectWs();
-        {% endif %}
-    });
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('{% static "core/sw.js" %}');
+    }
     </script>
 </body>
 </html>

@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: tareas_redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   db:
     image: postgres:16-alpine
     container_name: tareas_db
@@ -37,10 +47,18 @@ services:
       - DB_USER=${DB_USER:-tareas}
       - DB_PASSWORD=${DB_PASSWORD:-tareas}
       - DB_PORT=5432
-      - DJANGO_SUPERUSER_USERNAME=hades
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-hades}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-Death123*}
       - DJANGO_SUPERUSER_EMAIL=admin@example.com
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import http.client; c=http.client.HTTPConnection('localhost',5006,timeout=5); c.request('GET','/health/'); r=c.getresponse(); assert r.status==200"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
+      redis:
+        condition: service_healthy
       db:
         condition: service_healthy
     restart: unless-stopped

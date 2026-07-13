@@ -12,12 +12,51 @@
         <div class="header-actions">
             <a href="{% url 'export_csv' %}" class="btn btn-small">CSV</a>
             <a href="{% url 'export_xlsx' %}" class="btn btn-small">Excel</a>
-            <a href="{% url 'export_pdf' %}?mes={{ mes }}&ano={{ ano }}" class="btn btn-small export-pdf">PDF</a>
+            <a href="#" class="btn btn-small" onclick="document.getElementById('pdfOptions').classList.toggle('open');return false">PDF ▾</a>
         </div>
     </div>
 
+    <div id="pdfOptions" class="pdf-options" style="display:none;margin-bottom:16px;padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">
+        <h4 style="margin-bottom:8px">📄 Exportar PDF</h4>
+        <form method="get" action="{% url 'export_pdf' %}">
+            <div class="form-group inline-form" style="flex-wrap:wrap">
+                <label>Desde:</label>
+                <input type="date" name="desde" class="form-control" style="width:auto">
+                <label>Hasta:</label>
+                <input type="date" name="hasta" class="form-control" style="width:auto">
+                <label>Estado:</label>
+                <select name="estado" class="form-control" style="width:auto">
+                    <option value="">Todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="proceso">En Proceso</option>
+                    <option value="revision">En Revisión</option>
+                    <option value="terminada">Terminada</option>
+                </select>
+                <label>Orientación:</label>
+                <select name="orientacion" class="form-control" style="width:auto">
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-small">Descargar</button>
+            </div>
+        </form>
+    </div>
+    <script>
+    document.addEventListener('click', function(e) {
+        const opts = document.getElementById('pdfOptions');
+        if (opts && !e.target.closest('#pdfOptions') && !e.target.closest('.export-pdf')) {
+            opts.classList.remove('open');
+            opts.style.display = 'none';
+        }
+    });
+    document.querySelector('.btn-small[onclick*="pdfOptions"]')?.addEventListener('click', function() {
+        const opts = document.getElementById('pdfOptions');
+        opts.style.display = opts.classList.contains('open') ? 'none' : 'block';
+    });
+    </script>
+
     <form method="get" class="filter-form">
-        <div class="form-group inline-form">
+        <div class="form-group inline-form" style="flex-wrap:wrap;gap:8px">
             <label for="mes">Mes:</label>
             <select name="mes" id="mes" class="form-control">
                 {% for num, nombre in meses %}
@@ -29,6 +68,18 @@
                 {% for a in anos %}
                 <option value="{{ a }}" {% if ano == a %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
+            </select>
+            <label for="usuario">Usuario:</label>
+            <select name="usuario" id="usuario" class="form-control">
+                <option value="">Todos</option>
+                {% for u in usuarios %}
+                <option value="{{ u.id }}" {% if usuario_selected == u.id %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+            <label for="filtro_estado">Estado:</label>
+            <select name="filtro_estado" id="filtro_estado" class="form-control">
+                <option value="todas" {% if filtro_estado == 'todas' %}selected{% endif %}>Todas</option>
+                <option value="terminada" {% if filtro_estado == 'terminada' %}selected{% endif %}>Solo Completadas</option>
             </select>
             <button type="submit" class="btn btn-primary">Ver Resumen</button>
         </div>
@@ -54,6 +105,10 @@
         <div class="stat-card progress">
             <span class="stat-number">{{ conteo_estados.proceso }}</span>
             <span class="stat-label">En Proceso</span>
+        </div>
+        <div class="stat-card progress">
+            <span class="stat-number">{{ conteo_estados.revision }}</span>
+            <span class="stat-label">En Revisión</span>
         </div>
     </div>
 
@@ -88,6 +143,7 @@
         {% endif %}
     </div>
 
+    {% if filtro_estado != 'terminada' %}
     <div class="section">
         <h3>⏳ Pendientes ({{ conteo_estados.pendiente }})</h3>
         {% if tareas_pendientes_list %}
@@ -128,6 +184,28 @@
         <p class="empty">No hay tareas en proceso este mes.</p>
         {% endif %}
     </div>
+    {% endif %}
+
+    {% if filtro_estado != 'terminada' %}
+    <div class="section">
+        <h3>📋 En Revisión ({{ conteo_estados.revision }})</h3>
+        {% if tareas_revision_list %}
+        <ul class="task-list">
+            {% for t in tareas_revision_list|slice:":10" %}
+            <li class="task-item status-revision">
+                <div class="task-info">
+                    <a href="{% url 'task_detail' t.id %}" class="task-title">{{ t.titulo }}</a>
+                    {% if t.fecha_vencimiento %}<small>Vence: {{ t.fecha_vencimiento|date:"d/m/Y" }}</small>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if tareas_revision_list|length > 10 %}<p class="empty">... y {{ tareas_revision_list|length|add:"-10" }} más</p>{% endif %}
+        {% else %}
+        <p class="empty">No hay tareas en revisión este mes.</p>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <div class="charts-row">
         <div class="chart-card">
@@ -196,49 +274,16 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script src="{% static 'core/charts.js' %}"></script>
 {% if total_tareas > 0 %}
-const colores = {
-    urgente: '#f85149', alta: '#d29922', media: '#58a6ff', baja: '#3fb950',
-    pendiente: '#d29922', proceso: '#58a6ff', terminada: '#3fb950',
+<script>
+window.chartData = {
+    prioridad_labels: {{ prioridad_labels|safe }},
+    prioridad_data: {{ prioridad_data|safe }},
+    dias_mes: {{ dias_mes }},
+    tareas_por_dia: [{% for d in tareas_por_dia %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}]
 };
-
-new Chart(document.getElementById('chartPrioridad'), {
-    type: 'doughnut',
-    data: {
-        labels: {{ prioridad_labels|safe }},
-        datasets: [{
-            data: {{ prioridad_data|safe }},
-            backgroundColor: [colores.urgente, colores.alta, colores.media, colores.baja],
-            borderWidth: 0,
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: { legend: { position: 'bottom', labels: { color: '#8b949e' } } }
-    }
-});
-
-new Chart(document.getElementById('chartDias'), {
-    type: 'bar',
-    data: {
-        labels: Array.from({length: {{ dias_mes }}}, (_, i) => i + 1),
-        datasets: [{
-            label: 'Tareas creadas',
-            data: [{% for d in tareas_por_dia %}{{ d }}{% if not forloop.last %},{% endif %}{% endfor %}],
-            backgroundColor: '#58a6ff',
-            borderRadius: 3,
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b949e' }, grid: { color: '#30363d' } },
-            x: { ticks: { color: '#8b949e' }, grid: { display: false } }
-        }
-    }
-});
-{% endif %}
+document.addEventListener('DOMContentLoaded', initSummaryCharts);
 </script>
+{% endif %}
 {% endblock %}

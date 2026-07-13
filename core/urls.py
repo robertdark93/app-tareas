@@ -5,10 +5,7 @@ from .forms_auth import LockoutAuthenticationForm
 
 urlpatterns = [
     # Auth
-    path('accounts/login/', auth_views.LoginView.as_view(
-        template_name='core/login.html',
-        authentication_form=LockoutAuthenticationForm,
-    ), name='login'),
+    path('accounts/login/', views.CustomLoginView.as_view(), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
 
     # Home
@@ -69,6 +66,8 @@ urlpatterns = [
     path('admin-panel/departments/create/', views.admin_department_create, name='admin_department_create'),
     path('admin-panel/departments/<int:pk>/edit/', views.admin_department_edit, name='admin_department_edit'),
     path('admin-panel/backups/', views.admin_backups, name='admin_backups'),
+    path('admin-panel/backups/config/', views.admin_backup_config, name='admin_backup_config'),
+    path('admin-panel/email-config/', views.admin_email_config, name='admin_email_config'),
     path('admin-panel/report/', views.admin_report, name='admin_report'),
     path('admin-panel/report/csv/', views.admin_report_export_csv, name='admin_report_export_csv'),
     path('admin-panel/report/pdf/', views.admin_report_export_pdf, name='admin_report_export_pdf'),
@@ -90,6 +89,15 @@ urlpatterns = [
 
     # Task quick status change
     path('tasks/<int:pk>/change-status/', views.task_change_status, name='task_change_status'),
+
+    # Workload
+    path('workload/', views.workload, name='workload'),
+
+    # Activity feed
+    path('activity/', views.activity_feed, name='activity_feed'),
+
+    # Task list reorder
+    path('tasks/reorder/', views.task_reorder, name='task_reorder'),
 
     # Help & About
     path('help/', views.help_page, name='help'),

@@ -1,0 +1,42 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Carga de Trabajo{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>📊 Carga de Trabajo</h1>
+        <div class="header-actions">
+            <a href="{% url 'admin_dashboard' %}" class="btn">← Admin</a>
+        </div>
+    </div>
+
+    <div class="section">
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Total</th>
+                    <th>⏳ Pendientes</th>
+                    <th>⚡ En Proceso</th>
+                    <th>🔍 En Revisión</th>
+                    <th>✅ Terminadas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.total }}</td>
+                    <td>{{ u.pendientes }}</td>
+                    <td>{{ u.proceso }}</td>
+                    <td>{{ u.revision }}</td>
+                    <td>{{ u.terminadas }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="empty">No hay usuarios.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

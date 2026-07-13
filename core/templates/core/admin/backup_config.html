@@ -1,0 +1,33 @@
+{% extends 'core/base.html' %}
+{% block title %}Configuración de Respaldos{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <h1>⚙️ Configuración de Respaldos Automáticos</h1>
+        <div class="header-actions">
+            <a href="{% url 'admin_backups' %}" class="btn">← Volver a Respaldos</a>
+        </div>
+    </div>
+    <div class="section" style="max-width:500px">
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="auto_backup" {% if config.auto_backup %}checked{% endif %}>
+                    Activar respaldos automáticos
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="interval_hours">Intervalo entre respaldos (horas)</label>
+                <input type="number" name="interval_hours" id="interval_hours" min="1" max="720" value="{{ config.interval_hours }}" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="keep_last">Número de respaldos a conservar</label>
+                <input type="number" name="keep_last" id="keep_last" min="1" max="100" value="{{ config.keep_last }}" class="form-control">
+                <small style="color:var(--text-muted);font-size:0.78rem">Los más antiguos se eliminarán automáticamente.</small>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar configuración</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

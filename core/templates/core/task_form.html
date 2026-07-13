@@ -1,5 +1,9 @@
 {% extends 'core/base.html' %}
+{% load static %}
 {% block title %}{% if object %}Editar Tarea{% else %}Nueva Tarea{% endif %}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/flatpickr.min.css' %}">
+{% endblock %}
 {% block content %}
 <div class="form-container">
     <h1>{% if object %}✏️ Editar Tarea{% else %}➕ Nueva Tarea{% endif %}</h1>
@@ -47,39 +51,12 @@
         </div>
         {% elif field.name == 'horas_tomadas' or field.name == 'horas_estimadas' %}
         <div class="form-group">
-            <label for="id_{{ field.name }}_h">{{ field.label }}</label>
-            <div class="inline-form" style="display:flex;gap:6px;align-items:center">
-                <input type="number" id="id_{{ field.name }}_h" min="0" max="999" class="form-control" style="width:80px" placeholder="hh" value="0">
-                <span style="color:var(--text-muted)">h</span>
-                <input type="number" id="id_{{ field.name }}_m" min="0" max="59" class="form-control" style="width:80px" placeholder="mm" value="0">
-                <span style="color:var(--text-muted)">m</span>
-                {{ field }}
-            </div>
+            <label for="id_{{ field.name }}">{{ field.label }}</label>
+            {{ field }}
             {% if field.errors %}
             <div class="field-error">{{ field.errors }}</div>
             {% endif %}
         </div>
-        <script>
-        (function() {
-            const fn = '{{ field.name }}';
-            const field = document.getElementById('id_' + fn);
-            const hInp = document.getElementById('id_' + fn + '_h');
-            const mInp = document.getElementById('id_' + fn + '_m');
-            field.type = 'hidden';
-            if (field.value) {
-                const v = parseFloat(field.value) || 0;
-                hInp.value = Math.floor(v);
-                mInp.value = Math.round((v - Math.floor(v)) * 60);
-            }
-            hInp.addEventListener('input', sync);
-            mInp.addEventListener('input', sync);
-            function sync() {
-                const h = parseInt(hInp.value) || 0;
-                const m = parseInt(mInp.value) || 0;
-                field.value = h + (m / 60);
-            }
-        })();
-        </script>
         {% else %}
         <div class="form-group">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -103,31 +80,14 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{% static 'core/flatpickr.min.js' %}"></script>
+<script src="{% static 'core/es.js' %}"></script>
+<script src="{% static 'core/task_form.js' %}"></script>
+{% if object and es_editar %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Lock task on edit page load
-    {% if object and es_editar %}
-    const pk = {{ object.id }};
-    fetch('{% url "task_lock" object.id %}', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-    }).catch(() => {});
-
-    // Release lock when leaving
-    window.addEventListener('beforeunload', function() {
-        navigator.sendBeacon('{% url "task_unlock" object.id %}', '');
-    });
-
-    document.getElementById('cancelEditBtn')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        fetch('{% url "task_unlock" object.id %}', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-        }).finally(() => {
-            window.location.href = this.href;
-        });
-    });
-    {% endif %}
+    acquireLock({{ object.id }}, getCSRFToken());
 });
 </script>
+{% endif %}
 {% endblock %}

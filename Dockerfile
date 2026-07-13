@@ -6,7 +6,7 @@ ENV http_proxy=$http_proxy https_proxy=$https_proxy
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/* || echo "WARNING: postgresql-client not installed (no network)"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

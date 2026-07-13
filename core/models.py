@@ -8,6 +8,8 @@ from django.urls import reverse
 class Department(models.Model):
     nombre = models.CharField(max_length=100, unique=True, verbose_name='Nombre')
     descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    creado = models.DateTimeField(auto_now_add=True, null=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['nombre']
@@ -81,6 +83,8 @@ class Profile(models.Model):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='Foto de perfil')
     avatar_icon = models.CharField(max_length=20, choices=ICONOS, blank=True, default='',
                                    verbose_name='Icono de perfil')
+    creado = models.DateTimeField(auto_now_add=True, null=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         verbose_name = 'Perfil'
@@ -94,6 +98,8 @@ class Tag(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Usuario')
     nombre = models.CharField(max_length=50, verbose_name='Nombre')
     color = models.CharField(max_length=7, default='#58a6ff', verbose_name='Color')
+    creado = models.DateTimeField(auto_now_add=True, null=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         unique_together = ['usuario', 'nombre']
@@ -109,6 +115,7 @@ class Task(models.Model):
     ESTADOS = [
         ('pendiente', 'Pendiente'),
         ('proceso', 'En Proceso'),
+        ('revision', 'En Revisión'),
         ('terminada', 'Terminada'),
     ]
     PRIORIDADES = [
@@ -169,6 +176,7 @@ class Attachment(models.Model):
     archivo = models.FileField(upload_to='archivos/%Y/%m/', verbose_name='Archivo')
     nombre = models.CharField(max_length=255, verbose_name='Nombre')
     subido = models.DateTimeField(auto_now_add=True, verbose_name='Subido')
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-subido']
@@ -205,6 +213,7 @@ class Notification(models.Model):
     mensaje = models.CharField(max_length=255, verbose_name='Mensaje')
     leido = models.BooleanField(default=False, verbose_name='Leído')
     creado = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -228,6 +237,7 @@ class TaskTemplate(models.Model):
     recurrente = models.BooleanField(default=False, verbose_name='Recurrente')
     frecuencia = models.CharField(max_length=10, choices=FRECUENCIAS, blank=True, verbose_name='Frecuencia')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -243,6 +253,7 @@ class TaskComment(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Usuario')
     contenido = models.TextField(verbose_name='Comentario')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['creado']
@@ -265,6 +276,7 @@ class TaskLog(models.Model):
     accion = models.CharField(max_length=20, choices=ACCIONES, verbose_name='Acción')
     detalle = models.TextField(blank=True, verbose_name='Detalle')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -280,6 +292,7 @@ class LoginLog(models.Model):
     ip_address = models.GenericIPAddressField(blank=True, null=True, verbose_name='IP')
     success = models.BooleanField(default=False, verbose_name='Exitoso')
     creado = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -294,6 +307,7 @@ class PasswordHistory(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_history')
     password = models.CharField(max_length=128, verbose_name='Hash de contraseña')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -318,6 +332,7 @@ class AdminLog(models.Model):
     accion = models.CharField(max_length=30, choices=ACCIONES, verbose_name='Acción')
     detalle = models.TextField(blank=True, verbose_name='Detalle')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering = ['-creado']
@@ -334,6 +349,7 @@ class TaskWatcher(models.Model):
     tarea = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='observadores',
                               verbose_name='Tarea')
     creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         unique_together = ['usuario', 'tarea']
@@ -343,3 +359,37 @@ class TaskWatcher(models.Model):
 
     def __str__(self):
         return f'{self.usuario.username} → {self.tarea.titulo}'
+
+
+class BackupConfig(models.Model):
+    auto_backup = models.BooleanField(default=False, verbose_name='Copias automáticas')
+    interval_hours = models.PositiveIntegerField(default=24, verbose_name='Intervalo (horas)')
+    keep_last = models.PositiveIntegerField(default=10, verbose_name='Conservar últimas')
+    last_backup = models.DateTimeField(null=True, blank=True, verbose_name='Última copia')
+    creado = models.DateTimeField(auto_now_add=True, null=True)
+    actualizado = models.DateTimeField(auto_now=True, null=True)
+
+    class Meta:
+        verbose_name = 'Configuración de respaldo'
+        verbose_name_plural = 'Configuracion de respaldos'
+
+    def __str__(self):
+        return f'Backup cada {self.interval_hours}h, guardar {self.keep_last}'
+
+
+class EmailConfig(models.Model):
+    host = models.CharField(max_length=255, blank=True, default='', verbose_name='Servidor SMTP')
+    port = models.PositiveIntegerField(default=587, verbose_name='Puerto')
+    username = models.CharField(max_length=255, blank=True, default='', verbose_name='Usuario')
+    password = models.CharField(max_length=255, blank=True, default='', verbose_name='Contraseña')
+    from_email = models.EmailField(max_length=255, blank=True, default='', verbose_name='Correo remitente')
+    use_tls = models.BooleanField(default=True, verbose_name='Usar TLS')
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración de correo'
+        verbose_name_plural = 'Configuración de correo'
+
+    def __str__(self):
+        return f'SMTP {self.host}:{self.port}'
