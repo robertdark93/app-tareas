@@ -2,7 +2,6 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
-*.pyc
 *.sqlite3
 *.db
 *.swp
@@ -11,3 +10,6 @@ __pycache__/
 media/
 backups/
 staticfiles/
+.env
+deploy.sh
+*.log

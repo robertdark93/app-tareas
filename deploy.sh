@@ -48,8 +48,6 @@ tar czf "$TARBALL" \
 info "Subiendo a ${REMOTE_USER}@${REMOTE_HOST}..."
 sshpass -p "$REMOTE_PASS" scp -o StrictHostKeyChecking=no \
     "$TARBALL" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/app_tareas_deploy.tar.gz"
-sshpass -p "$REMOTE_PASS" scp -o StrictHostKeyChecking=no \
-    "$SCRIPT_DIR/.env" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/app_tareas.env"
 ok "Archivos subidos."
 
 info "Desplegando en ${REMOTE_HOST}..."
@@ -87,21 +85,21 @@ sudox chown "$USER:$USER" "$REMOTE_DIR"
 echo "📦 Extrayendo..."
 tar xzf /tmp/app_tareas_deploy.tar.gz -C "$REMOTE_DIR"
 rm -f /tmp/app_tareas_deploy.tar.gz
-cp /tmp/app_tareas.env "$REMOTE_DIR/.env"
-rm -f /tmp/app_tareas.env
+echo "📝 Conservando .env existente (no se sobreescribe)"
 
 cd "$REMOTE_DIR"
 mkdir -p media backups
 
-echo "🔍 Verificando puerto..."
-if ! ss -tlnp | grep -q ':5000 '; then
-    APP_PORT=5000
-elif ! ss -tlnp | grep -q ':5001 '; then
-    APP_PORT=5001
-else
-    echo "❌ Puertos 5000 y 5001 ocupados."
-    exit 1
+echo "🔍 Verificando puerto 5000..."
+if ss -tlnp | grep -q ':5000 '; then
+    echo "⚠️  Puerto 5000 ocupado — liberando..."
+    PID=$(ss -tlnp | grep ':5000 ' | grep -oP 'pid=\K[0-9]+')
+    if [ -n "$PID" ]; then
+        kill -9 "$PID" 2>/dev/null || true
+        sleep 1
+    fi
 fi
+APP_PORT=5000
 echo "✅ Usando puerto $APP_PORT"
 DETECTED_PORT=$APP_PORT
 
